@@ -230,14 +230,31 @@ export default function Home() {
     }
   };
 
-  const downloadGuardedBundle = () => {
+  const downloadGuardedBundle = async () => {
     const yamlContent = synthesizedYaml || "version: '2.0'\nagent_name: GuardedAgent";
-    const blob = new Blob([yamlContent], { type: "text/yaml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "contracts.yaml";
-    a.click();
+    try {
+      const res = await fetch(`${API_BASE}/api/policy/download-bundle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          yaml_content: yamlContent,
+          agent_name: selectedPreset.replace("_", " ").toUpperCase() + " AGENT"
+        })
+      });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `contractguard_${selectedPreset}_bundle.zip`;
+      a.click();
+    } catch {
+      const blob = new Blob([yamlContent], { type: "text/yaml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "contracts.yaml";
+      a.click();
+    }
   };
 
   return (

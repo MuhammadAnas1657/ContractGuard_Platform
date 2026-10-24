@@ -89,3 +89,21 @@ def validate_policy_yaml(req: PolicyValidateRequest):
         errors=errors,
         parsed_contract=parsed if len(errors) == 0 else None
     )
+
+@router.post("/download-bundle")
+def download_guarded_bundle(payload: dict):
+    """Generates and streams a downloadable zip containing contracts.yaml, drop-in middleware, and integration guide."""
+    from fastapi.responses import Response
+    from ..core.zip_extractor import ZipToolExtractor
+    
+    yaml_content = payload.get("yaml_content", "")
+    agent_name = payload.get("agent_name", "GuardedAgent")
+    zip_bytes = ZipToolExtractor.create_guarded_bundle_zip(yaml_content, agent_name=agent_name)
+    
+    filename = f"contractguard_{agent_name.lower().replace(' ', '_')}_bundle.zip"
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
