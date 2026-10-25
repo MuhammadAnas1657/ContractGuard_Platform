@@ -137,5 +137,5 @@ python examples/run_demo.py
 
 - **Event:** Nebius x NVIDIA Global AI Hackathon
 - **Track:** Coding and Agentic Engineering Track / Best Apps and Agents Track
-- **Cloud Infrastructure:** Nebius Token Factory (`api.tokenfactory.nebius.ai/v1`)
+- **Cloud Infrastructure:** Nebius Token Factory (`api.tokenfactory.nebius.ai/v1`)..
 - **Foundation Models:** NVIDIA Llama-3.1-Nemotron-70B-Instruct & NVIDIA Nemotron-Mini-4B-Instruct
