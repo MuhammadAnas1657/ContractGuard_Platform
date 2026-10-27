@@ -61,3 +61,15 @@ class AttackSignatureRecord(Base):
     signature_type = Column(String(64), default="regex")  # regex, prefix, embedding_hash
     attack_family = Column(String(128), default="jailbreak")
     description = Column(String(255), default="")
+
+class ApiKeyRecord(Base):
+    __tablename__ = "api_keys"
+
+    id = Column(String(64), primary_key=True, index=True)
+    user_id = Column(String(64), index=True, nullable=False)
+    key_name = Column(String(255), default="Production Gateway Key")
+    key_prefix = Column(String(32), nullable=False)  # Displayed to user e.g. cgx_live_ab12...
+    key_hash = Column(String(255), nullable=False)   # SHA-256 hash for secure verification
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    last_used_at = Column(DateTime, nullable=True)

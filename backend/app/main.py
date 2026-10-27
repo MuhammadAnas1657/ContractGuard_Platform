@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .database import init_db
 from .core.seed_data import seed_attack_signatures
-from .api import nebius, projects, policies, simulations, metrics, auth
+from .api import nebius, projects, policies, simulations, metrics, auth, deployment_guard
 
 # Initialize database tables on startup & seed attack signatures into PostgreSQL
 init_db()
@@ -26,6 +26,7 @@ app.add_middleware(
 
 # Mount API Routers
 app.include_router(auth.router, prefix="/api")
+app.include_router(deployment_guard.router, prefix="/api")
 app.include_router(nebius.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(policies.router, prefix="/api")
