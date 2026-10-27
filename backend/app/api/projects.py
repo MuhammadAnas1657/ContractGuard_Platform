@@ -24,7 +24,7 @@ async def upload_agent_zip(
         raise HTTPException(status_code=400, detail="Only .zip archives are supported.")
 
     content = await file.read()
-    extracted_files, tools = ZipToolExtractor.extract_tools_from_zip(content)
+    extracted_files, tools, _ = ZipToolExtractor.extract_tools_from_zip(content)
 
     proj_id = f"proj_{uuid.uuid4().hex[:8]}"
     name = project_name or file.filename.replace(".zip", "")
