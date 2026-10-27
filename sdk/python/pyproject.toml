@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "contractguard-x"
+version = "2.0.0"
+description = "Zero-Trust Security Gateway & Stateful Reference Monitor for AI Agents"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "ContractGuard Team", email = "dev@contractguard.ai" }
+]
+keywords = ["security", "ai-agents", "prompt-injection", "langchain", "reference-monitor", "nebius", "nvidia"]
+dependencies = [
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+    "requests>=2.28.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "openai>=1.14.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["contractguard_x*"]
