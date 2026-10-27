@@ -1,0 +1,340 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ==========================================================================
+   LIGHT THEME (:root) — Clean Off-White Canvas, Translucent White Glass,
+   Subtle Control Neumorphism, Crisp Solid Technical Surfaces
+   ========================================================================== */
+:root {
+  --bg: #F4F6FA;
+  --surface: #FFFFFF;
+  --surface-subtle: #EDF1F7;
+  --surface-opaque: #FFFFFF;
+  --surface-opaque-alt: #F1F5F9;
+
+  /* Glassmorphism Layers (Light) */
+  --header-bg: rgba(248, 250, 253, 0.82);
+  --glass-bg: rgba(255, 255, 255, 0.76);
+  --glass-strong-bg: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(15, 23, 42, 0.09);
+  --glass-border-hover: rgba(15, 23, 42, 0.16);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --glass-shadow: 0 10px 28px -10px rgba(15, 23, 42, 0.07), 0 2px 6px rgba(15, 23, 42, 0.03);
+  --glass-shadow-hover: 0 14px 34px -10px rgba(15, 23, 42, 0.11), 0 3px 8px rgba(15, 23, 42, 0.04);
+
+  /* Subtle Neumorphism Controls (Light) */
+  --neu-bg: linear-gradient(180deg, #FAFBFD 0%, #EEF2F8 100%);
+  --neu-bg-hover: linear-gradient(180deg, #FFFFFF 0%, #E8EEF6 100%);
+  --neu-border: rgba(148, 163, 184, 0.34);
+  --neu-shadow-raised: 2px 3px 6px rgba(148, 163, 184, 0.24), -2px -2px 5px rgba(255, 255, 255, 0.92), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --neu-shadow-hover: 3px 4px 8px rgba(148, 163, 184, 0.30), -2px -2px 6px rgba(255, 255, 255, 0.96), inset 0 1px 0 rgba(255, 255, 255, 1);
+  --neu-pressed-bg: #E8EEF6;
+  --neu-pressed-border: rgba(5, 150, 105, 0.38);
+  --neu-shadow-pressed: inset 2px 2px 5px rgba(148, 163, 184, 0.34), inset -2px -2px 5px rgba(255, 255, 255, 0.90);
+  --neu-group-bg: #E9EEF6;
+
+  /* Solid Technical Surface Borders */
+  --border: rgba(15, 23, 42, 0.10);
+  --border-solid: #CBD5E1;
+
+  /* High-Contrast Typography (WCAG AA+) */
+  --text: #0F172A;
+  --muted: #475569;
+
+  /* Brand & Semantic Accents */
+  --accent: #059669;
+  --accent-fg: #FFFFFF;
+  --accent-shadow: 0 3px 10px rgba(5, 150, 105, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  --accent-shadow-hover: 0 6px 16px rgba(5, 150, 105, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --ai: #047857;
+  --danger: #DC2626;
+  --warning: #B45309;
+}
+
+/* ==========================================================================
+   DARK THEME (.dark) — Deep Navy Canvas, Layered Dark Glass,
+   Subtle Tactile Controls, Solid High-Contrast Technical Surfaces
+   ========================================================================== */
+.dark {
+  --bg: #0B1020;
+  --surface: #121A2E;
+  --surface-subtle: #162038;
+  --surface-opaque: #0C1324;
+  --surface-opaque-alt: #131D35;
+
+  /* Glassmorphism Layers (Dark) */
+  --header-bg: rgba(11, 16, 32, 0.80);
+  --glass-bg: rgba(18, 26, 46, 0.70);
+  --glass-strong-bg: rgba(20, 29, 52, 0.82);
+  --glass-border: rgba(148, 163, 184, 0.15);
+  --glass-border-hover: rgba(148, 163, 184, 0.26);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --glass-shadow: 0 12px 32px -10px rgba(2, 6, 23, 0.52), 0 2px 6px rgba(2, 6, 23, 0.30);
+  --glass-shadow-hover: 0 16px 38px -10px rgba(2, 6, 23, 0.65), 0 4px 12px rgba(2, 6, 23, 0.36);
+
+  /* Subtle Neumorphism Controls (Dark) */
+  --neu-bg: linear-gradient(180deg, #1A2540 0%, #131C32 100%);
+  --neu-bg-hover: linear-gradient(180deg, #1F2C4C 0%, #17223B 100%);
+  --neu-border: rgba(148, 163, 184, 0.18);
+  --neu-shadow-raised: 2px 3px 7px rgba(2, 6, 23, 0.55), -1px -1px 4px rgba(51, 65, 85, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --neu-shadow-hover: 3px 4px 9px rgba(2, 6, 23, 0.65), -1px -1px 5px rgba(71, 85, 105, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --neu-pressed-bg: #0B1222;
+  --neu-pressed-border: rgba(16, 185, 129, 0.42);
+  --neu-shadow-pressed: inset 2px 3px 6px rgba(2, 6, 23, 0.76), inset -1px -1px 4px rgba(30, 41, 59, 0.24);
+  --neu-group-bg: rgba(10, 15, 29, 0.72);
+
+  /* Solid Technical Surface Borders */
+  --border: rgba(148, 163, 184, 0.15);
+  --border-solid: #24324F;
+
+  /* High-Contrast Typography */
+  --text: #EEF2FA;
+  --muted: #9FB0CC;
+
+  /* Brand & Semantic Accents */
+  --accent: #10B981;
+  --accent-fg: #041610;
+  --accent-shadow: 0 3px 12px rgba(16, 185, 129, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.20);
+  --accent-shadow-hover: 0 6px 18px rgba(16, 185, 129, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.26);
+  --ai: #34D399;
+  --danger: #F87171;
+  --warning: #FBBF24;
+}
+
+@layer base {
+  html {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Restrained architectural depth so glass surfaces separate cleanly from canvas */
+    background-image:
+      radial-gradient(920px 440px at 18% 0%, rgba(5, 150, 105, 0.055), transparent 70%),
+      radial-gradient(880px 420px at 85% 8%, rgba(15, 23, 42, 0.035), transparent 72%);
+    background-repeat: no-repeat;
+  }
+
+  .dark body {
+    background-image:
+      radial-gradient(960px 460px at 16% -4%, rgba(16, 185, 129, 0.085), transparent 70%),
+      radial-gradient(920px 480px at 86% 6%, rgba(30, 58, 138, 0.10), transparent 72%);
+    background-repeat: no-repeat;
+  }
+
+  code,
+  pre,
+  kbd,
+  samp {
+    font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+}
+
+/* ==========================================================================
+   A. GLASSMORPHISM — Primary Structural Surfaces
+   Restrained translucency, thin low-contrast borders, soft highlights
+   ========================================================================== */
+.site-header-bar {
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 4px 20px -8px rgba(2, 6, 23, 0.12);
+}
+
+.glass,
+.glass-strong,
+.glass-panel {
+  background-color: var(--surface);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-highlight), var(--glass-shadow);
+  border-radius: 16px;
+  transition:
+    border-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 180ms ease;
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .site-header-bar {
+    background-color: var(--header-bg);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+  }
+
+  .glass {
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(14px) saturate(135%);
+    -webkit-backdrop-filter: blur(14px) saturate(135%);
+  }
+
+  .glass-strong,
+  .glass-panel {
+    background-color: var(--glass-strong-bg);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+  }
+}
+
+.glass-interactive:hover,
+a.glass:hover {
+  border-color: var(--glass-border-hover);
+  box-shadow: var(--glass-highlight), var(--glass-shadow-hover);
+}
+
+.glass-footer {
+  background-color: var(--glass-strong-bg);
+  border-top: 1px solid var(--glass-border);
+}
+
+/* Performance safeguard: lighter blur radius on small viewports */
+@media (max-width: 640px) {
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .site-header-bar,
+    .glass,
+    .glass-strong,
+    .glass-panel {
+      backdrop-filter: blur(10px) saturate(125%);
+      -webkit-backdrop-filter: blur(10px) saturate(125%);
+    }
+  }
+}
+
+/* ==========================================================================
+   B. SUBTLE NEUMORPHISM — Secondary Accent for Small Controls Only
+   Buttons, tabs, segmented groups, toggles, and compact progress bars
+   ========================================================================== */
+.neu-raised {
+  background: var(--neu-bg);
+  border: 1px solid var(--neu-border);
+  box-shadow: var(--neu-shadow-raised);
+  border-radius: 10px;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 180ms ease,
+    transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.neu-raised:hover {
+  background: var(--neu-bg-hover);
+  box-shadow: var(--neu-shadow-hover);
+}
+
+.neu-raised:active {
+  background: var(--neu-pressed-bg);
+  box-shadow: var(--neu-shadow-pressed);
+}
+
+.neu-pressed {
+  background: var(--neu-pressed-bg);
+  border: 1px solid var(--neu-pressed-border);
+  box-shadow: var(--neu-shadow-pressed);
+  border-radius: 10px;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 180ms ease;
+}
+
+.neu-group {
+  background: var(--neu-group-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--neu-shadow-pressed);
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.neu-track {
+  background: var(--neu-pressed-bg);
+  box-shadow: var(--neu-shadow-pressed);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   C. SOLID SURFACES — Technical Code, YAML, Diffs, Warnings & Tables
+   Zero blur, high contrast, crisp 1px borders
+   ========================================================================== */
+.surface-opaque,
+.surface-prose {
+  background-color: var(--surface-opaque);
+  border: 1px solid var(--border-solid);
+  border-radius: 12px;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.surface-opaque-header {
+  background-color: var(--surface-opaque-alt);
+  border-bottom: 1px solid var(--border-solid);
+}
+
+/* ==========================================================================
+   PRIMARY EMERALD CTA BUTTONS (.cta-emerald)
+   ========================================================================== */
+.cta-emerald {
+  background-color: var(--accent);
+  color: var(--accent-fg);
+  box-shadow: var(--accent-shadow);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  transition:
+    box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 180ms ease;
+}
+
+.cta-emerald:hover {
+  box-shadow: var(--accent-shadow-hover);
+  opacity: 0.96;
+}
+
+.cta-emerald:active {
+  transform: translateY(1px);
+}
+
+/* ==========================================================================
+   ACCESSIBILITY: REDUCED TRANSPARENCY & REDUCED MOTION
+   ========================================================================== */
+@media (prefers-reduced-transparency: reduce) {
+  .site-header-bar,
+  .glass,
+  .glass-strong,
+  .glass-panel,
+  .glass-footer {
+    background-color: var(--surface) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

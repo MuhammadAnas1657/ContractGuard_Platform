@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+dist/
+out/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Archives & binaries
+*.zip
+*.tar.gz
+
+# Logs & temp
+*.log
+.DS_Store

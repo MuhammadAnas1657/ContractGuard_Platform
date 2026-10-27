@@ -1,0 +1,372 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #F7F8FB;
+  --surface: #FFFFFF;
+  --border: #E2E6EF;
+  --text: #0F172A;
+  --muted: #5B667F;
+  --accent: #059669;
+  --ai: #7C3AED;
+  --danger: #DC2626;
+  --warning: #D97706;
+
+  /* Ambient Gradient Glows - Light: soft pastel emerald, violet & cyan */
+  --glow-emerald: rgba(16, 185, 129, 0.12);
+  --glow-violet: rgba(139, 92, 246, 0.12);
+  --glow-cyan: rgba(6, 182, 212, 0.10);
+
+  /* Glassmorphism Tokens - Light */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-subtle: rgba(255, 255, 255, 0.55);
+  --glass-bg-strong: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(226, 230, 239, 0.85);
+  --glass-border-light: rgba(255, 255, 255, 0.95);
+  --glass-shadow: 0 10px 30px -5px rgba(148, 163, 184, 0.18), 0 4px 6px -2px rgba(148, 163, 184, 0.05);
+  --glass-shadow-lg: 0 20px 40px -10px rgba(148, 163, 184, 0.25), 0 8px 16px -4px rgba(148, 163, 184, 0.1);
+  --glass-highlight: inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
+
+  /* Neumorphism Tokens - Light: Paired light and dark shadows */
+  --neu-shadow-dark: rgba(163, 177, 198, 0.40);
+  --neu-shadow-light: #FFFFFF;
+  --neu-raised: 3px 3px 6px var(--neu-shadow-dark), -3px -3px 6px var(--neu-shadow-light);
+  --neu-raised-sm: 2px 2px 4px var(--neu-shadow-dark), -2px -2px 4px var(--neu-shadow-light);
+  --neu-pressed: inset 2px 2px 5px var(--neu-shadow-dark), inset -2px -2px 5px var(--neu-shadow-light);
+  --neu-pressed-sm: inset 1px 1px 3px var(--neu-shadow-dark), inset -1px -1px 3px var(--neu-shadow-light);
+  --neu-bg: #EEF2F7;
+  --neu-bg-active: #E2E8F0;
+}
+
+.dark {
+  --bg: #0B1020;
+  --surface: #121A2E;
+  --border: #26314D;
+  --text: #E6EAF5;
+  --muted: #8B97B5;
+  --accent: #10B981;
+  --ai: #8B5CF6;
+  --danger: #EF4444;
+  --warning: #F59E0B;
+
+  /* Ambient Gradient Glows - Dark: deep navy base with rich emerald, violet & cyan */
+  --glow-emerald: rgba(16, 185, 129, 0.15);
+  --glow-violet: rgba(139, 92, 246, 0.16);
+  --glow-cyan: rgba(6, 182, 212, 0.12);
+
+  /* Glassmorphism Tokens - Dark */
+  --glass-bg: rgba(18, 26, 46, 0.68);
+  --glass-bg-subtle: rgba(18, 26, 46, 0.48);
+  --glass-bg-strong: rgba(18, 26, 46, 0.88);
+  --glass-border: rgba(38, 49, 77, 0.75);
+  --glass-border-light: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  --glass-shadow-lg: 0 24px 48px -12px rgba(0, 0, 0, 0.7), 0 12px 24px -6px rgba(0, 0, 0, 0.5);
+  --glass-highlight: inset 0 1px 1px 0 rgba(255, 255, 255, 0.08);
+
+  /* Neumorphism Tokens - Dark: Soft raised/pressed look */
+  --neu-shadow-dark: rgba(0, 0, 0, 0.65);
+  --neu-shadow-light: rgba(255, 255, 255, 0.05);
+  --neu-raised: 3px 3px 6px var(--neu-shadow-dark), -2px -2px 5px var(--neu-shadow-light);
+  --neu-raised-sm: 2px 2px 4px var(--neu-shadow-dark), -1px -1px 3px var(--neu-shadow-light);
+  --neu-pressed: inset 2px 2px 5px var(--neu-shadow-dark), inset -1px -1px 3px var(--neu-shadow-light);
+  --neu-pressed-sm: inset 1px 1px 3px var(--neu-shadow-dark), inset -1px -1px 2px var(--neu-shadow-light);
+  --neu-bg: #141E34;
+  --neu-bg-active: #0E1526;
+}
+
+body {
+  background-color: var(--bg);
+  background-image: 
+    radial-gradient(ellipse 65% 50% at 10% 15%, var(--glow-emerald) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 45% at 90% 20%, var(--glow-violet) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 50% at 50% 85%, var(--glow-cyan) 0%, transparent 55%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code, pre, .font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ========================================================================= */
+/* GLASSMORPHISM UTILITIES                                                   */
+/* ========================================================================= */
+.glass {
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  border-radius: 18px;
+}
+
+.glass-subtle {
+  background-color: var(--glass-bg-subtle);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  border-radius: 16px;
+}
+
+.glass-card {
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  border-radius: 18px;
+}
+
+.glass-card-strong {
+  background-color: var(--glass-bg-strong);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-lg), var(--glass-highlight);
+  border-radius: 20px;
+}
+
+.glass-panel {
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  border-radius: 18px;
+}
+
+.glass-sidebar {
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+}
+
+.glass-header {
+  background-color: var(--glass-bg-strong);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06), var(--glass-highlight);
+}
+
+.glass-modal {
+  background-color: var(--glass-bg-strong);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-lg), var(--glass-highlight);
+  border-radius: 20px;
+}
+
+.glass-dropdown {
+  background-color: var(--glass-bg-strong);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-lg), var(--glass-highlight);
+  border-radius: 14px;
+}
+
+/* ========================================================================= */
+/* NEUMORPHISM UTILITIES (Small Controls Only)                              */
+/* ========================================================================= */
+.neu-raised {
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-raised);
+}
+
+.neu-raised-sm {
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-raised-sm);
+}
+
+.neu-pressed {
+  background-color: var(--neu-bg-active);
+  box-shadow: var(--neu-pressed);
+}
+
+.neu-pressed-sm {
+  background-color: var(--neu-bg-active);
+  box-shadow: var(--neu-pressed-sm);
+}
+
+/* Neumorphic Small Button */
+.neu-btn {
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-raised-sm);
+  border: 1px solid var(--glass-border);
+  transition: all 0.15s ease;
+}
+.neu-btn:hover {
+  filter: brightness(1.04);
+}
+.neu-btn:active {
+  box-shadow: var(--neu-pressed-sm);
+  transform: translateY(1px);
+}
+
+/* Neumorphic Theme Toggle */
+.neu-toggle {
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-raised-sm);
+  border: 1px solid var(--glass-border);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.neu-toggle:hover {
+  filter: brightness(1.05);
+}
+.neu-toggle:active {
+  box-shadow: var(--neu-pressed-sm);
+}
+
+/* Neumorphic Segmented Tab Group */
+.neu-tab-group {
+  background-color: var(--neu-bg-active);
+  box-shadow: var(--neu-pressed-sm);
+  border: 1px solid var(--glass-border);
+  padding: 3px;
+  border-radius: 12px;
+}
+
+.neu-tab {
+  transition: all 0.15s ease;
+  border-radius: 9px;
+}
+.neu-tab-active {
+  background-color: var(--surface);
+  box-shadow: var(--neu-raised-sm);
+  color: var(--text);
+  font-weight: 600;
+}
+.neu-tab-inactive {
+  color: var(--muted);
+}
+.neu-tab-inactive:hover {
+  color: var(--text);
+}
+
+/* Neumorphic Split Divider Handle */
+.neu-divider-handle {
+  background-color: var(--neu-bg);
+  box-shadow: var(--neu-raised-sm);
+  border: 1px solid var(--glass-border);
+}
+.neu-divider-handle:hover {
+  background-color: var(--neu-bg-active);
+  box-shadow: var(--neu-pressed-sm);
+}
+
+/* ========================================================================= */
+/* READABILITY: STRICTLY OPAQUE HIGH-CONTRAST SAFEGUARDS                    */
+/* ========================================================================= */
+/* YAML/code blocks, diff views, table body, form inputs, OTP boxes:         */
+/* MUST remain solid opaque with no glass blur and no neumorphism            */
+.surface-opaque {
+  background-color: var(--surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.code-opaque {
+  background-color: #0B1020 !important;
+  color: #E6EAF5 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.input-opaque {
+  background-color: var(--surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  color: var(--text) !important;
+}
+
+.diff-opaque {
+  background-color: var(--surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.table-opaque {
+  background-color: var(--surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Custom token helper utilities */
+.bg-app { background-color: var(--bg); }
+.bg-surface { background-color: var(--surface); }
+.border-token { border-color: var(--border); }
+.text-token { color: var(--text); }
+.text-muted-token { color: var(--muted); }
+.text-accent-token { color: var(--accent); }
+.bg-accent-token { background-color: var(--accent); }
+.text-ai-token { color: var(--ai); }
+.bg-ai-token { background-color: var(--ai); }
+.text-danger-token { color: var(--danger); }
+.bg-danger-token { background-color: var(--danger); }
+.text-warning-token { color: var(--warning); }
+.bg-warning-token { background-color: var(--warning); }
+
+/* ========================================================================= */
+/* ACCESSIBILITY & FOCUS RINGS                                              */
+/* ========================================================================= */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Prefers Reduced Transparency Fallback */
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .glass-card,
+  .glass-card-strong,
+  .glass-panel,
+  .glass-subtle,
+  .glass-sidebar,
+  .glass-header,
+  .glass-modal,
+  .glass-dropdown {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-color: var(--surface) !important;
+  }
+}
+
+/* Fallback for browsers without backdrop-filter support */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass,
+  .glass-card,
+  .glass-card-strong,
+  .glass-panel,
+  .glass-subtle,
+  .glass-sidebar,
+  .glass-header,
+  .glass-modal,
+  .glass-dropdown {
+    background-color: var(--surface) !important;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Next.js & Build Output
+.next/
+dist/
+out/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Archives & Binaries
+*.zip
+*.tar.gz
+
+# Logs
+*.log
+.DS_Store
+Thumbs.db
+
+*.tsbuildinfo
