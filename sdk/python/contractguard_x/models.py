@@ -7,18 +7,22 @@ from enum import Enum
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
 
+
 class SourceTrust(str, Enum):
     AUTHENTICATED_USER = "authenticated_user"
+    APPROVED_DEVELOPER = "approved_developer"
     UNTRUSTED_EXTERNAL = "untrusted_external"
     INTERNAL_DB = "internal_db"
     SYSTEM_CONFIG = "system_config"
     TOOL_RESULT = "tool_result"
     UNKNOWN = "unknown"
 
+
 class ParameterRule(BaseModel):
     """Rules for validating a single tool argument."""
     name: str
     param_type: str = "string"
+    purpose: str = "data_value"
     max_value: Optional[float] = None
     min_value: Optional[float] = None
     allowed_domains: Optional[List[str]] = None
@@ -28,9 +32,10 @@ class ParameterRule(BaseModel):
         description="List of trusted source tags allowed to instantiate this parameter"
     )
     untrusted_sources_blocked: List[str] = Field(
-        default_factory=lambda: ["customer_email", "untrusted_external", "web_content", "ticket_comment"],
+        default_factory=list,
         description="Untrusted source tags forbidden from directly providing this parameter"
     )
+
 
 class ToolContract(BaseModel):
     """Security contract for an individual tool."""
@@ -44,14 +49,16 @@ class ToolContract(BaseModel):
     requires_semantic_verification: bool = False
     requires_human_approval: bool = False
 
+
 class GlobalEnvelope(BaseModel):
     """Ceiling limits for the entire agent session."""
     max_cumulative_budget: Optional[float] = 1000.0
     max_tool_invocations: int = 50
     denied_tools: List[str] = Field(
-        default_factory=lambda: ["execute_shell", "delete_database", "format_disk", "drop_tables"]
+        default_factory=lambda: ["execute_shell", "delete_database", "format_disk", "drop_tables", "eval"]
     )
     restricted_effects: List[str] = Field(default_factory=list)
+
 
 class SecurityContract(BaseModel):
     """The master declarative contract enforced at runtime."""
@@ -74,6 +81,13 @@ class SecurityContract(BaseModel):
         with open(filepath, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return cls(**data)
+
+
+class SessionHandle(BaseModel):
+    id: str
+    policy_id: str
+    user_task: str
+
 
 class InterceptionDecision(BaseModel):
     allowed: bool

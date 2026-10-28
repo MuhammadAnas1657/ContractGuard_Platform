@@ -1,6 +1,6 @@
 import re
-import hashlib
 from typing import Optional, Tuple, Dict, Any, List
+
 
 class FastAttackSignatureDB:
     """
@@ -12,7 +12,7 @@ class FastAttackSignatureDB:
     KNOWN_ATTACK_PATTERNS: List[Dict[str, Any]] = [
         {
             "id": "SIG_SYS_OVERRIDE_01",
-            "pattern": r"(?i)(ignore\s+all\s+(previous|prior)\s+(instructions|prompts|rules)|disregard\s+(previous|above)\s+instructions)",
+            "pattern": r"(?i)(ignore\s+all\s+(previous|prior)\s+(instructions|prompts|rules)|disregard\s+(previous|prior|above)\s+instructions|system\s+override)",
             "family": "System Override Jailbreak",
             "severity": "CRITICAL"
         },
@@ -24,19 +24,19 @@ class FastAttackSignatureDB:
         },
         {
             "id": "SIG_SQL_INJECTION_03",
-            "pattern": r"(?i)(;\s*DROP\s+TABLE|UNION\s+SELECT|OR\s+1\s*=\s*1\s*--|DELETE\s+FROM\s+\w+)",
+            "pattern": r"(?i)(;\s*DROP\s+TABLE|drop\s+all\s+\w+\s+tables|UNION\s+SELECT|OR\s+1\s*=\s*1\s*--|DELETE\s+FROM\s+\w+)",
             "family": "Direct SQL/Database Injection",
             "severity": "CRITICAL"
         },
         {
             "id": "SIG_SHELL_EXEC_04",
-            "pattern": r"(?i)(;\s*(rm\s+-rf|curl\s+http|wget\s+http|cat\s+/etc/passwd|nc\s+-e|bash\s+-i))",
+            "pattern": r"(?i)(?:^|[;&|`\n]\s*)(rm\s+-rf|curl\s+http|wget\s+http|cat\s+/etc/passwd|nc\s+-e|bash\s+-i)|execute_shell\s*\(",
             "family": "Arbitrary Command Injection",
             "severity": "CRITICAL"
         },
         {
             "id": "SIG_MARKDOWN_EXFIL_05",
-            "pattern": r"!\[.*?\]\(https?://[^\s\)]+(?:\?|&)(?:token|key|secret|password|account)=.*?\)",
+            "pattern": r"!\[.*?\]\(https?://[^\s\)]+(?:\?|&)(?:token|key|secret|password|account|data|auth)=.*?\)",
             "family": "Markdown UI Image Exfiltration",
             "severity": "HIGH"
         },
@@ -68,6 +68,23 @@ class FastAttackSignatureDB:
                 return True, meta["id"], f"{meta['family']} ({meta['severity']})"
 
         return None
+
+    def scan_all(self, text: str) -> List[Dict[str, Any]]:
+        """
+        Scans input string and returns all matched signature metadata dictionaries.
+        """
+        if not text:
+            return []
+        matched = []
+        for regex, meta in self.compiled_rules:
+            if regex.search(text):
+                matched.append({
+                    "id": meta["id"],
+                    "family": meta["family"],
+                    "severity": meta["severity"]
+                })
+        return matched
+
 
 # Singleton instance for high-speed reuse
 signature_db = FastAttackSignatureDB()

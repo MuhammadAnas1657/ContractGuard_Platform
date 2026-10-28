@@ -7,6 +7,7 @@ from typing import List, Dict, Optional, Any
 from pydantic import BaseModel, Field
 from .models import SourceTrust
 
+
 class TaggedInput(BaseModel):
     source_id: str
     source_type: SourceTrust
@@ -14,11 +15,15 @@ class TaggedInput(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     timestamp: float = Field(default_factory=time.time)
 
+
 class ProvenanceTracker:
     """Tracks context origins and evaluates whether parameter values possess verified authority."""
 
     def __init__(self):
         self._registry: List[TaggedInput] = []
+
+    def reset(self) -> None:
+        self._registry.clear()
 
     def register(
         self,
@@ -65,11 +70,21 @@ class ProvenanceTracker:
         return matched_sources
 
     def is_authorized_value(self, value: Any, allowed_sources: List[str], forbidden_sources: List[str]) -> tuple[bool, str]:
+        # If no forbidden_sources restriction is placed on this parameter (e.g. a bounded numeric amount), allow it
+        if not forbidden_sources:
+            return True, "Parameter does not restrict untrusted data sources; validated by schema bounds."
+
         origins = self.find_origins(value)
         if not origins:
-            if "authenticated_user" in allowed_sources and len(allowed_sources) == 1:
-                return False, f"Value '{value}' does not originate from authenticated user prompt."
             return True, "Value generated autonomously within schema bounds."
+
+        # Check if explicitly present in an authenticated_user source (Case P2: Authorized recipient control)
+        has_trusted_origin = any(
+            o.source_type in {SourceTrust.AUTHENTICATED_USER, SourceTrust.INTERNAL_DB, SourceTrust.APPROVED_DEVELOPER}
+            for o in origins
+        )
+        if has_trusted_origin:
+            return True, "Value independently authorized by verified trusted source."
 
         # Check for forbidden sources
         for origin in origins:
@@ -78,18 +93,5 @@ class ProvenanceTracker:
             for forbidden in forbidden_sources:
                 if forbidden in source_type_str or forbidden in source_name or forbidden == origin.source_id:
                     return False, f"Value '{value}' was injected from forbidden source: {origin.source_id} ({origin.source_type.value})."
-
-        # Check for allowed sources
-        has_allowed = False
-        for origin in origins:
-            for allowed in allowed_sources:
-                if allowed in origin.source_type.value or allowed in origin.source_id:
-                    has_allowed = True
-                    break
-            if has_allowed:
-                break
-
-        if not has_allowed and allowed_sources:
-            return False, f"Value '{value}' not authorized. Allowed: {allowed_sources}."
 
         return True, "Value authorized by verified source evidence."

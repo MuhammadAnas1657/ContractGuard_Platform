@@ -7,6 +7,7 @@ from ..database import get_db
 from ..models.db_models import SimulationRunRecord
 from ..models.schemas import SimulationRequest, SimulationResponse
 from ..core.simulator import agent_simulator
+from .auth import require_auth
 
 router = APIRouter(prefix="/simulate", tags=["Attack Simulator"])
 
@@ -18,6 +19,7 @@ def list_scenarios() -> Dict[str, Any]:
 @router.post("/run", response_model=SimulationResponse)
 def run_simulation(
     req: SimulationRequest,
+    auth: dict = Depends(require_auth),
     db: Session = Depends(get_db)
 ):
     """

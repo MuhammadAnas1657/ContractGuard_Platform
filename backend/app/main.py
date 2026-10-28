@@ -1,17 +1,19 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from .config import settings
-from .database import init_db
+from .database import init_db, engine
 from .core.seed_data import seed_attack_signatures
+from .core.nebius_client import nebius_service
 from .api import nebius, projects, policies, simulations, metrics, auth, deployment_guard
 
-# Initialize database tables on startup & seed attack signatures into PostgreSQL
+# Initialize database tables on startup & seed attack signatures into PostgreSQL / SQLite
 init_db()
 seed_attack_signatures()
 
 app = FastAPI(
-    title="ContractGuard Platform API",
-    description="Dual-End Policy Synthesizer & Runtime Reference Monitor for AI Agents",
+    title="ContractGuard-X Platform API",
+    description="Dual-End Policy Synthesizer & Stateful Reference Monitor for AI Agents (Nebius x NVIDIA Hackathon)",
     version=settings.VERSION
 )
 
@@ -24,33 +26,78 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount API Routers
+# Mount API Routers under /api and standard /v1
 app.include_router(auth.router, prefix="/api")
 app.include_router(deployment_guard.router, prefix="/api")
+app.include_router(deployment_guard.router)  # Also expose directly at /v1/... per Methodology Section 7
 app.include_router(nebius.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(policies.router, prefix="/api")
 app.include_router(simulations.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
 
-@app.get("/api/status")
-def get_system_status():
+
+@app.get("/health")
+def health_check():
+    """Process health check endpoint (Methodology Section 7)."""
     return {
         "status": "healthy",
-        "service": "ContractGuard Security Core",
+        "service": "ContractGuard-X Security Core",
+        "version": settings.VERSION
+    }
+
+
+@app.get("/ready")
+def readiness_check():
+    """Database and Nebius provider readiness status (Methodology Section 7)."""
+    db_ok = False
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+            db_ok = True
+    except Exception:
+        db_ok = False
+
+    is_live = nebius_service.is_live_configured()
+    return {
+        "status": "ready" if db_ok else "degraded",
+        "ready": db_ok,
+        "database_connected": db_ok,
+        "database_dialect": engine.dialect.name,
+        "nebius_provider": {
+            "base_url": settings.NEBIUS_BASE_URL,
+            "synthesis_model": settings.NEMOTRON_SYNTHESIS_MODEL,
+            "verifier_model": settings.NEMOTRON_VERIFIER_MODEL,
+            "live_api_key_configured": is_live,
+            "provider_mode": "live" if is_live else "offline"
+        }
+    }
+
+
+@app.get("/api/status")
+def get_system_status():
+    is_live = nebius_service.is_live_configured()
+    return {
+        "status": "operational",
+        "service": "ContractGuard-X",
         "version": settings.VERSION,
-        "database": "PostgreSQL / SQLite (SQLAlchemy ORM)",
+        "database": f"{engine.dialect.name} (SQLAlchemy ORM)",
+        "nebius_live": is_live,
+        "provider_mode": "live" if is_live else "offline",
         "nebius_cloud": {
-            "connected": bool(settings.DEFAULT_NEBIUS_API_KEY),
+            "connected": is_live,
+            "is_live": is_live,
+            "provider_mode": "live" if is_live else "offline",
             "base_url": settings.NEBIUS_BASE_URL,
             "synthesis_model": settings.NEMOTRON_SYNTHESIS_MODEL,
             "verifier_model": settings.NEMOTRON_VERIFIER_MODEL
         }
     }
 
+
 @app.get("/")
 def root():
     return {
-        "message": "Welcome to ContractGuard Platform API. Visit /docs for OpenAPI documentation.",
+        "message": "Welcome to ContractGuard-X Platform API. Visit /docs for OpenAPI documentation.",
         "version": settings.VERSION
     }

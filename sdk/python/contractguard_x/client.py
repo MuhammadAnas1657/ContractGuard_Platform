@@ -5,11 +5,13 @@ Provides both high-performance local reference monitoring and REST Gateway integ
 from __future__ import annotations
 import os
 import time
+import uuid
 import requests
 from typing import Dict, Any, Optional, Callable
-from .models import SecurityContract, InterceptionDecision
+from .models import SecurityContract, InterceptionDecision, SessionHandle
 from .provenance import ProvenanceTracker
 from .ledger import CumulativeEffectLedger
+
 
 class ContractGuardClient:
     """
@@ -36,6 +38,7 @@ class ContractGuardClient:
 
         self.base_url = base_url or os.getenv("CONTRACTGUARD_BASE_URL")
         self.api_key = api_key or os.getenv("CONTRACTGUARD_API_KEY", "")
+        self.session_id = f"sdk_sess_{uuid.uuid4().hex[:8]}"
         self.provenance = ProvenanceTracker()
         self.ledger = CumulativeEffectLedger(
             max_cumulative_budget=self.contract.global_envelope.max_cumulative_budget,
@@ -44,6 +47,44 @@ class ContractGuardClient:
         self.user_intent = user_intent
         if user_intent:
             self.provenance.tag_user_input(user_intent)
+
+    def create_session(self, policy_id: str = "demo-doc-agent", user_task: str = "Summarize this report") -> SessionHandle:
+        """Creates a new guarded session (Methodology Section 7 SDK interface)."""
+        self.reset_session()
+        self.set_user_task(user_task)
+        if self.base_url:
+            try:
+                resp = requests.post(
+                    f"{self.base_url.rstrip('/')}/v1/sessions",
+                    json={"policy_id": policy_id, "user_task": user_task},
+                    timeout=3.0
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    self.session_id = data.get("session_id", self.session_id)
+            except Exception:
+                pass
+        return SessionHandle(id=self.session_id, policy_id=policy_id, user_task=user_task)
+
+    def execute_tool(self, session_id: str, tool: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """Executes a tool through the ContractGuard reference monitor (Methodology Section 7 SDK interface)."""
+        decision = self.evaluate_action(tool, arguments)
+        if not decision.allowed:
+            raise PermissionError(f"[ContractGuard-X Interception - {decision.stage}]: {decision.reason}")
+        return {
+            "session_id": session_id,
+            "tool": tool,
+            "status": "EXECUTED",
+            "decision": decision.model_dump()
+        }
+
+    def reset_session(self) -> None:
+        """Resets cumulative effect ledger and provenance state for a fresh session."""
+        self.session_id = f"sdk_sess_{uuid.uuid4().hex[:8]}"
+        self.ledger.reset()
+        self.provenance.reset()
+        if self.user_intent:
+            self.provenance.tag_user_input(self.user_intent)
 
     def set_user_task(self, task: str) -> None:
         """Sets authenticated user intent."""
@@ -63,26 +104,31 @@ class ContractGuardClient:
         # Gateway Mode if base_url is specified
         if self.base_url:
             try:
+                untrusted_list = [
+                    e.content for e in self.provenance._registry
+                    if e.source_type.value == "untrusted_external"
+                ]
                 resp = requests.post(
-                    f"{self.base_url.rstrip('/')}/simulate/run",
+                    f"{self.base_url.rstrip('/')}/api/v1/guard/egress",
                     json={
-                        "scenario_id": "indirect_email_injection",
-                        "custom_user_goal": self.user_intent,
-                        "custom_malicious_payload": str(parameters),
-                        "contract_yaml": self.contract.to_yaml()
+                        "session_id": self.session_id,
+                        "user_intent": self.user_intent,
+                        "untrusted_context": untrusted_list,
+                        "tool_name": tool_name,
+                        "tool_arguments": parameters,
+                        "session_budget": self.contract.global_envelope.max_cumulative_budget,
+                        "api_key": self.api_key or None
                     },
                     timeout=5.0
                 )
                 if resp.status_code == 200:
                     data = resp.json()
-                    cg_run = data.get("contractguard_run", {})
-                    allowed = (cg_run.get("status") == "SAFE")
-                    interception = cg_run.get("interception") or {}
+                    allowed = (data.get("decision") == "ALLOW")
                     elapsed = (time.perf_counter() - start_time) * 1000
                     return InterceptionDecision(
                         allowed=allowed,
-                        stage=interception.get("stage", "Remote Gateway"),
-                        reason=interception.get("reason", cg_run.get("execution_outcome", "")),
+                        stage=data.get("interception_stage", "Remote Gateway"),
+                        reason=data.get("reason") or "Authorized by remote ContractGuard Gateway.",
                         latency_ms=round(elapsed, 2),
                         tool_name=tool_name,
                         parameters=parameters
@@ -104,6 +150,16 @@ class ContractGuardClient:
             )
 
         tool_contract = self.contract.tools.get(tool_name)
+        if self.contract.tools and tool_contract is None:
+            elapsed = (time.perf_counter() - start_time) * 1000
+            return InterceptionDecision(
+                allowed=False,
+                stage="Stage 1: Boundary Perimeter Gateway",
+                reason=f"Tool '{tool_name}' is not registered in the approved Security Contract (default-deny).",
+                latency_ms=round(elapsed, 3),
+                tool_name=tool_name,
+                parameters=parameters
+            )
         effects = tool_contract.effects if tool_contract else ["system.call"]
 
         # 2. TCEAV Parameter Evidence Verification

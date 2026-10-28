@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Minimalist 2D Shield Base -->
+  <path d="M256 48 L440 84 V276 C440 376 348 440 256 468 C164 440 72 376 72 276 V84 L256 48 Z" 
+        fill="#2563EB" />
+  
+  <!-- Subtle 2D Inner Geometric Contour -->
+  <path d="M256 82 L412 112 V270 C412 352 334 408 256 432 C178 408 100 352 100 270 V112 L256 82 Z" 
+        stroke="#38BDF8" stroke-width="8" stroke-linejoin="round" fill="none" opacity="0.9" />
+
+  <!-- Central 2D Minimalist X / Dual-Gate Nexus -->
+  <path d="M184 194 L328 338" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round" />
+  <path d="M328 194 L184 338" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round" />
+
+  <!-- Central Reference Monitor Core -->
+  <circle cx="256" cy="266" r="28" fill="#1E40AF" stroke="#FFFFFF" stroke-width="8" />
+</svg>

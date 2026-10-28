@@ -8,8 +8,8 @@ import os
 # Ensure local SDK and backend modules are in path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "sdk", "python"))
 
-if hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from contractguard_x import (
     ContractGuardClient,
@@ -19,6 +19,7 @@ from contractguard_x import (
     GlobalEnvelope,
     guarded_tool
 )
+
 
 def build_demo_contract() -> SecurityContract:
     return SecurityContract(
@@ -38,6 +39,7 @@ def build_demo_contract() -> SecurityContract:
                     "target_account": ParameterRule(
                         name="target_account",
                         param_type="string",
+                        purpose="fund_recipient",
                         source_authority=["authenticated_user", "internal_db"],
                         untrusted_sources_blocked=["customer_email", "untrusted_external", "ticket_comment"]
                     )
@@ -45,6 +47,7 @@ def build_demo_contract() -> SecurityContract:
             )
         }
     )
+
 
 def main():
     print("=" * 70)
@@ -83,6 +86,7 @@ def main():
     # DEMO 2: Legitimate Customer Action (Utility Preservation)
     # -------------------------------------------------------------
     print("\n[TEST 2] Processing Legitimate Customer Refund...")
+    client.reset_session()
     client.set_user_task("Refund authorized customer account ACC-CORP-912.")
     try:
         res = process_refund(amount=250.0, target_account="ACC-CORP-912")
@@ -93,18 +97,21 @@ def main():
     # -------------------------------------------------------------
     # DEMO 3: Compositional Salami-Slicing Budget Drain
     # -------------------------------------------------------------
-    print("\n[TEST 3] Compositional Salami-Slicing Budget Drain (3x $400 transfers)...")
+    print("\n[TEST 3] Compositional Salami-Slicing Budget Drain (3x $400 transfers vs $1,000 ceiling)...")
+    client.reset_session()
+    client.set_user_task("Disperse authorized vendor stipends to ACC-CORP-912.")
     transfers = [400.0, 400.0, 400.0]
     for i, amt in enumerate(transfers, start=1):
         try:
             res = process_refund(amount=amt, target_account="ACC-CORP-912")
-            print(f"  Turn {i} (${amt}): {res}")
+            print(f"  Turn {i} (${amt:.2f}): ✅ {res}")
         except PermissionError as e:
-            print(f"  Turn {i} (${amt}): 🛑 BLOCKED: {e}")
+            print(f"  Turn {i} (${amt:.2f}): 🛑 BLOCKED: {e}")
 
     print("\n" + "=" * 70)
     print("🎉 All ContractGuard-X Security Invariants Verified!")
     print("=" * 70)
+
 
 if __name__ == "__main__":
     main()

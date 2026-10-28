@@ -1,20 +1,26 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from .config import settings
 
-connect_args = {}
-if settings.DATABASE_URL.startswith("sqlite"):
-    connect_args = {"check_same_thread": False}
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args=connect_args,
-    pool_pre_ping=True
-)
+def _build_engine():
+    db_url = settings.DATABASE_URL
+    if db_url.startswith("sqlite"):
+        return create_engine(db_url, connect_args={"check_same_thread": False}, pool_pre_ping=True)
+    try:
+        eng = create_engine(db_url, pool_pre_ping=True, connect_args={"connect_timeout": 3})
+        with eng.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return eng
+    except Exception:
+        fallback_url = "sqlite:///./contractguard.db"
+        return create_engine(fallback_url, connect_args={"check_same_thread": False}, pool_pre_ping=True)
 
+
+engine = _build_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
+
 
 def get_db():
     db = SessionLocal()
@@ -22,6 +28,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
 
 def init_db():
     from .models import db_models

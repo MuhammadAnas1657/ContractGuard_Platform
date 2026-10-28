@@ -7,7 +7,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: hackathon_secret_password
+      POSTGRES_PASSWORD: hackathon
       POSTGRES_DB: hackathon
     ports:
       - "5432:5432"
@@ -29,7 +29,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://postgres:hackathon_secret_password@db:5432/hackathon
+      DATABASE_URL: postgresql://postgres:hackathon@db:5432/hackathon
       NEBIUS_BASE_URL: https://api.tokenfactory.nebius.ai/v1
       NEBIUS_API_KEY: ${NEBIUS_API_KEY:-}
       NEMOTRON_SYNTHESIS_MODEL: nvidia/llama-3.1-nemotron-70b-instruct
