@@ -55,20 +55,26 @@ export default function DashboardView({
   const [liveProjects, setLiveProjects] = useState<any[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
 
-  // Policy-First 3-Phase Workflow State
+  // Policy-First 3-Phase Workflow State (100% Unrestricted Custom Self-Creation)
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [newProjectName, setNewProjectName] = useState("");
-  const [selectedPreset, setSelectedPreset] = useState<string>("");
-  const [customTools, setCustomTools] = useState<string>("");
-  const [overviewMd, setOverviewMd] = useState<string>("");
+  const [projectDomain, setProjectDomain] = useState("");
+  const [customTools, setCustomTools] = useState("");
+  const [overviewMd, setOverviewMd] = useState("");
 
-  // Phase 2: AI Policy Architect Interview State
+  // Phase 2: AI Policy Architect Dynamic Analysis & Interview State
+  const [detectedPrivileges, setDetectedPrivileges] = useState<string[]>([]);
+  const [detectedConflicts, setDetectedConflicts] = useState<any[]>([]);
+  const [missingSafeguards, setMissingSafeguards] = useState<any[]>([]);
+  const [aiRiskSummary, setAiRiskSummary] = useState<string>("");
+  const [aiModelUsed, setAiModelUsed] = useState<string>("");
   const [interviewQuestions, setInterviewQuestions] = useState<any[]>([]);
   const [interviewAnswers, setInterviewAnswers] = useState<Record<string, any>>({});
   const [conductingInterview, setConductingInterview] = useState(false);
   const [hardenResult, setHardenResult] = useState<any>(null);
   const [policyApproved, setPolicyApproved] = useState(false);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [policyTab, setPolicyTab] = useState<"yaml" | "tests">("yaml");
 
   // Phase 3: Keys Generation State
   const [generatingKeys, setGeneratingKeys] = useState(false);
@@ -120,34 +126,17 @@ export default function DashboardView({
     return () => clearInterval(interval);
   }, []);
 
-  const handlePresetSelect = (preset: string) => {
-    if (selectedPreset === preset) {
-      setSelectedPreset("");
-      setNewProjectName("");
-      setCustomTools("");
-      setOverviewMd("");
+  // Phase 1 -> Phase 2: Start Dynamic AI Policy Architect Audit & Interview
+  const handleStartPolicyInterview = async () => {
+    const name = newProjectName.trim();
+    if (!name) {
+      alert("Please enter an Agent Project Name to begin.");
       return;
     }
-    setSelectedPreset(preset);
-    if (preset === "financial") {
-      setNewProjectName("Fintech Wealth Advisor Agent");
-      setCustomTools("get_portfolio_balance, execute_wire_transfer, query_market_depth, audit_ledger_records");
-      setOverviewMd("# Wealth Advisor Agent\nAutonomous banking agent designed to handle portfolio balances and wire transfers for verified accounts.");
-    } else if (preset === "support") {
-      setNewProjectName("Customer Support & Refunds Agent");
-      setCustomTools("lookup_order_status, process_refund, send_customer_email");
-      setOverviewMd("# Customer Support Agent\nHandles order status inquiries, processes customer refunds, and dispatches email notifications.");
-    } else if (preset === "devops") {
-      setNewProjectName("Cloud Infrastructure DevOps Agent");
-      setCustomTools("read_cluster_logs, restart_container, apply_firewall_rule, rotate_secrets");
-      setOverviewMd("# DevOps Agent\nMonitors kubernetes logs, automates container restarts, and schedules firewall security rules.");
-    }
-  };
-
-  // Phase 1 -> Phase 2: Start AI Policy Architect Interview
-  const handleStartPolicyInterview = async () => {
-    const name = newProjectName.trim() || "My Protected Agent";
+    const domain = projectDomain.trim() || "Custom";
     setConductingInterview(true);
+    setPolicyApproved(false);
+    setHardenResult(null);
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("cgx_auth_token") : null;
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -159,34 +148,53 @@ export default function DashboardView({
         headers,
         body: JSON.stringify({
           name,
-          description: `Protected agent project created via AI Policy Architect (${selectedPreset})`
+          description: `Custom agent project (${domain}) audited by AI Policy Architect`
         })
       });
+      if (!projRes.ok) {
+        const errJson = await projRes.json();
+        throw new Error(errJson.detail || "Failed to create project");
+      }
       const projData = await projRes.json();
       setActiveProjectId(projData.id);
 
       // Parse tool list
-      const toolList = customTools.split(",").map(t => t.trim()).filter(Boolean).map(t => ({
-        name: t,
-        parameters: {
-          target: { type: "string" },
-          amount: { type: "number", max_value: 500.0 }
-        }
-      }));
+      const toolList = customTools
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .map((t) => ({
+          name: t,
+          parameters: {
+            target: { type: "string" },
+            amount: { type: "number", max_value: 500.0 }
+          }
+        }));
 
-      // 2. Request AI Interview Questions
+      // 2. Request Dynamic AI Security Audit & Guided Questions
       const intRes = await fetch("/api/agentic/interview", {
         method: "POST",
         headers,
         body: JSON.stringify({
           project_id: projData.id,
           project_name: name,
+          domain,
           overview_md: overviewMd,
           tools: toolList
         })
       });
 
+      if (!intRes.ok) {
+        const errJson = await intRes.json();
+        throw new Error(errJson.detail || "Failed to complete AI interview");
+      }
+
       const intData = await intRes.json();
+      setDetectedPrivileges(intData.detected_privileges || []);
+      setDetectedConflicts(intData.detected_conflicts || []);
+      setMissingSafeguards(intData.missing_safeguards || []);
+      setAiRiskSummary(intData.risk_summary || "");
+      setAiModelUsed(intData.model_used || "NVIDIA Nemotron 70B");
       setInterviewQuestions(intData.questions || []);
 
       // Seed initial defaults for answers
@@ -204,6 +212,14 @@ export default function DashboardView({
     }
   };
 
+  const handleAcceptAllDefaults = () => {
+    const defaults: Record<string, any> = {};
+    interviewQuestions.forEach((q: any) => {
+      defaults[q.id] = q.default_value;
+    });
+    setInterviewAnswers(defaults);
+  };
+
   // Phase 2: Synthesize & Approve Policy (Methodology Invariant #1)
   const handleApproveAndSealPolicy = async () => {
     if (!activeProjectId) return;
@@ -213,27 +229,40 @@ export default function DashboardView({
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const toolList = customTools.split(",").map(t => t.trim()).filter(Boolean).map(t => ({
-        name: t,
-        parameters: { amount: { type: "number" } }
-      }));
+      const toolList = customTools
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .map((t) => ({
+          name: t,
+          parameters: { amount: { type: "number" } }
+        }));
 
       const res = await fetch("/api/agentic/harden-policy", {
         method: "POST",
         headers,
         body: JSON.stringify({
           project_id: activeProjectId,
-          project_name: newProjectName,
+          project_name: newProjectName.trim() || "CustomAgent",
+          domain: projectDomain.trim() || "Custom",
           overview_md: overviewMd,
           tools: toolList,
           answers: interviewAnswers
         })
       });
 
-      if (!res.ok) throw new Error("Failed to harden policy");
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.detail || "Failed to harden policy");
+      }
       const data = await res.json();
       setHardenResult(data);
       setPolicyApproved(true);
+      if (data.dual_keys) {
+        setIssuedDualKeys(data.dual_keys);
+      }
+      fetchLiveProjects();
+      fetchTelemetry();
     } catch (err: any) {
       alert("Error sealing policy: " + err.message);
     } finally {
@@ -244,6 +273,10 @@ export default function DashboardView({
   // Phase 3: Generate Dual API Keys (Gated strictly on approval)
   const handleGenerateProductionKeys = async () => {
     if (!activeProjectId || !policyApproved) return;
+    if (issuedDualKeys) {
+      setStep(3);
+      return;
+    }
     setGeneratingKeys(true);
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("cgx_auth_token") : null;
@@ -451,87 +484,87 @@ if egress_res.json().get("decision") == "BLOCK":
         </div>
 
         <div className="p-6">
-          {/* PHASE 1: SPEC & OVERVIEW */}
+          {/* PHASE 1: 100% UNRESTRICTED CUSTOM SPEC & OVERVIEW */}
           {step === 1 && (
             <div className="space-y-5 max-w-3xl">
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
-                  Select Quick Agent Archetype
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { id: "financial", label: "Fintech & Banking", desc: "Wire limits, spend ceilings, payee checks" },
-                    { id: "support", label: "Customer Support", desc: "Order status, refunds, email exfiltration" },
-                    { id: "devops", label: "Cloud & DevOps", desc: "Root terminal command containment" }
-                  ].map((p) => (
-                    <div
-                      key={p.id}
-                      onClick={() => handlePresetSelect(p.id)}
-                      role="button"
-                      className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                        selectedPreset === p.id
-                          ? "bg-[var(--accent-primary)]/10 border-[var(--accent-primary)] shadow-sm"
-                          : "bg-[var(--surface-inset)] border-[var(--border-color)] hover:border-[var(--accent-primary)]/40"
-                      }`}
-                    >
-                      <div className="font-bold text-xs text-[var(--text-primary)]">{p.label}</div>
-                      <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">{p.desc}</div>
-                    </div>
-                  ))}
+              <div className="p-4 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)]">
+                <div className="flex items-center gap-2 text-xs font-bold text-[var(--accent-primary)] mb-1">
+                  <Sparkles className="h-4 w-4" />
+                  <span>Custom Agent Project Self-Creation (Any Domain & Tool Surface)</span>
                 </div>
+                <p className="text-[11px] text-[var(--text-secondary)]">
+                  Architect and safeguard any agent project from scratch (Healthcare, Legal, DevOps, FinTech, E-Commerce, or Custom). The AI Policy Architect dynamically analyzes tool scopes to detect architectural conflicts and missing safeguards.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
-                    Agent Project Name
+                    Agent Project Name *
                   </label>
                   <input
                     type="text"
                     value={newProjectName}
                     onChange={(e) => setNewProjectName(e.target.value)}
-                    placeholder="e.g. Fintech Wealth Advisor Agent"
-                    className="w-full px-3.5 py-2 text-xs rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]"
+                    placeholder="e.g. Clinical Patient Assistant, Legal Contract Reviewer, DevOps Worker"
+                    className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
-                    Callable Agent Tools (Comma Separated)
+                    Domain / Industry Category
                   </label>
                   <input
                     type="text"
-                    value={customTools}
-                    onChange={(e) => setCustomTools(e.target.value)}
-                    placeholder="e.g. get_portfolio_balance, execute_wire_transfer, query_market_depth"
-                    className="w-full px-3.5 py-2 text-xs font-mono rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]"
+                    value={projectDomain}
+                    onChange={(e) => setProjectDomain(e.target.value)}
+                    placeholder="e.g. Healthcare, Legal, FinTech, E-Commerce, DevOps, Custom"
+                    className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]"
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
-                  System Overview Markdown (overview.md / README)
+                  Callable Agent Tools & APIs (Comma Separated)
+                </label>
+                <input
+                  type="text"
+                  value={customTools}
+                  onChange={(e) => setCustomTools(e.target.value)}
+                  placeholder="e.g. lookup_patient_record, update_prescription, email_doctor"
+                  className="w-full px-3.5 py-2.5 text-xs font-mono rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]"
+                />
+                <p className="text-[11px] text-[var(--text-secondary)] mt-1">
+                  List all tools and API endpoints the model can invoke. The AI security analyzer will inspect capability classes and side effects.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
+                  System Overview & Security Requirements Markdown (overview.md / README)
                 </label>
                 <textarea
                   value={overviewMd}
                   onChange={(e) => setOverviewMd(e.target.value)}
-                  rows={3}
-                  className="w-full px-3.5 py-2 text-xs font-mono rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]"
-                  placeholder="Paste your system overview or README markdown here..."
+                  rows={4}
+                  className="w-full px-3.5 py-2.5 text-xs font-mono rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)] leading-relaxed"
+                  placeholder="# Custom Agent Security Scope&#10;Describe the agent's task scope, authorized actions, sensitive data definitions, and required constraints..."
                 />
               </div>
 
               <div className="pt-2 flex items-center justify-between">
                 <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5">
                   <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                  <span>NVIDIA Nemotron will audit tools & conduct the policy interview</span>
+                  <span>NVIDIA Nemotron will audit tools & detect architectural conflicts</span>
                 </span>
 
                 <button
+                  type="button"
                   onClick={handleStartPolicyInterview}
-                  disabled={conductingInterview}
-                  className="flex items-center gap-2 px-5 py-2 text-xs font-bold rounded-xl bg-[var(--accent-primary)] hover:opacity-90 text-white transition-all shadow-md disabled:opacity-50"
+                  disabled={conductingInterview || !newProjectName.trim()}
+                  className="flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-xl bg-[var(--accent-primary)] hover:opacity-90 text-white transition-all shadow-md disabled:opacity-50"
                 >
                   {conductingInterview ? (
                     <>
@@ -549,42 +582,216 @@ if egress_res.json().get("decision") == "BLOCK":
             </div>
           )}
 
-          {/* PHASE 2: AI POLICY ARCHITECT INTERVIEW & CRYPTOGRAPHIC SEAL */}
+          {/* PHASE 2: AI POLICY ARCHITECT 3-SECTION AUDIT REPORT & CRYPTOGRAPHIC SEAL */}
           {step === 2 && (
-            <div className="space-y-5 max-w-3xl animate-fadeIn">
-              <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs flex items-center justify-between">
+            <div className="space-y-6 max-w-4xl animate-fadeIn">
+              {/* Header Banner */}
+              <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <Bot className="h-5 w-5 text-blue-400 shrink-0" />
+                  <div>
+                    <div className="font-bold text-[var(--text-primary)] text-sm flex items-center gap-2">
+                      <span>{newProjectName || "Custom Agent Project"}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-mono">
+                        {projectDomain || "Custom"}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                      Audited by <strong className="text-blue-400">{aiModelUsed || "NVIDIA Nemotron 70B"}</strong> • Invariant #1 Policy-First Enforcement
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-2">
-                  <Bot className="h-4 w-4 shrink-0" />
-                  <span>
-                    <strong>AI Policy Architect Agent:</strong> Analyzed tool surface. Please answer policy constraints before issuing production keys.
-                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAcceptAllDefaults}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-card)] hover:bg-[var(--surface-card-hover)] border border-blue-500/30 text-blue-400 font-bold text-xs transition-all shadow-sm"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 text-blue-400" />
+                    <span>Accept All AI Recommendations</span>
+                  </button>
                 </div>
               </div>
 
-              {/* Questions List */}
+              {/* Risk Summary Callout */}
+              {aiRiskSummary && (
+                <div className="p-3.5 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] flex items-start gap-2.5 text-xs text-[var(--text-secondary)] leading-relaxed">
+                  <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="text-[var(--text-primary)]">AI Architectural Risk Assessment: </strong>
+                    {aiRiskSummary}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 1: DETECTED CAPABILITIES & ATTACK SURFACE */}
+              <div className="p-4 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wide flex items-center gap-1.5">
+                    <Shield className="h-4 w-4 text-[var(--accent-primary)]" />
+                    Section 1: Identified Capability Classes & Attack Surface
+                  </span>
+                  <span className="text-[10px] text-[var(--text-secondary)] font-mono">
+                    {detectedPrivileges.length} classes identified
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {detectedPrivileges.length > 0 ? (
+                    detectedPrivileges.map((p) => {
+                      let colorClass = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+                      if (p.includes("FINANCIAL")) colorClass = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+                      else if (p.includes("SYSTEM")) colorClass = "bg-rose-500/10 text-rose-400 border-rose-500/20";
+                      else if (p.includes("DATABASE")) colorClass = "bg-purple-500/10 text-purple-400 border-purple-500/20";
+                      else if (p.includes("SENSITIVE")) colorClass = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+                      else if (p.includes("EGRESS") || p.includes("COMMUNICATION")) colorClass = "bg-cyan-500/10 text-cyan-400 border-cyan-500/20";
+
+                      return (
+                        <span key={p} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold border ${colorClass}`}>
+                          <Zap className="h-3 w-3" />
+                          {p}
+                        </span>
+                      );
+                    })
+                  ) : (
+                    <span className="text-xs text-[var(--text-secondary)] italic">
+                      No high-privilege primitives detected. Standard observation scope.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* SECTION 2: DETECTED ARCHITECTURAL CONFLICTS & MISSING SAFEGUARDS */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Architectural Conflicts */}
+                <div className="p-4 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wide flex items-center gap-1.5">
+                      <AlertTriangle className="h-4 w-4 text-rose-400" />
+                      Architectural Conflicts
+                    </span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${detectedConflicts.length > 0 ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                      {detectedConflicts.length} Detected
+                    </span>
+                  </div>
+
+                  <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                    {detectedConflicts.length > 0 ? (
+                      detectedConflicts.map((c) => (
+                        <div key={c.id} className="p-3 rounded-lg bg-rose-500/5 border border-rose-500/20 text-xs space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-rose-400 flex items-center gap-1">
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 font-mono">{c.severity || "HIGH"}</span>
+                              <span>{c.title}</span>
+                            </span>
+                            {c.affected_tool && (
+                              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-card)] text-slate-300 border border-[var(--border-color)]">
+                                {c.affected_tool}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+                            {c.description}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                        <span>No scope contradictions detected between tools and overview.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Missing Safeguards */}
+                <div className="p-4 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wide flex items-center gap-1.5">
+                      <ShieldAlert className="h-4 w-4 text-amber-400" />
+                      Missing Invariant Constraints
+                    </span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${missingSafeguards.length > 0 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                      {missingSafeguards.length} Missing
+                    </span>
+                  </div>
+
+                  <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                    {missingSafeguards.length > 0 ? (
+                      missingSafeguards.map((s) => (
+                        <div key={s.id} className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-amber-400 flex items-center gap-1">
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 font-mono">{s.severity || "MEDIUM"}</span>
+                              <span>{s.title}</span>
+                            </span>
+                            {s.parameter && (
+                              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-card)] text-slate-300 border border-[var(--border-color)]">
+                                {s.parameter}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+                            {s.recommendation}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                        <span>All identified tool parameters possess baseline boundary definitions.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: DYNAMIC GUIDED INTERVIEW QUESTIONS */}
               <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wide flex items-center gap-1.5">
+                    <Bot className="h-4 w-4 text-blue-400" />
+                    Section 3: AI-Recommended Invariant Questions (Resolving Gaps)
+                  </span>
+                  <span className="text-[10px] text-[var(--text-secondary)]">
+                    Configure parameter boundaries & approval triggers
+                  </span>
+                </div>
+
                 {interviewQuestions.map((q) => (
-                  <div key={q.id} className="p-4 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] space-y-2">
-                    <div className="flex items-center justify-between">
+                  <div key={q.id} className="p-4 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] space-y-2.5">
+                    <div className="flex items-center justify-between gap-3">
                       <span className="font-bold text-xs text-[var(--text-primary)]">{q.question}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-card)] text-[var(--accent-primary)] font-mono border border-[var(--border-color)]">
-                        {q.tool_name}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {q.parameter && (
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-card)] text-amber-400 font-mono border border-[var(--border-color)]">
+                            param: {q.parameter}
+                          </span>
+                        )}
+                        {q.tool_name && (
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-card)] text-[var(--accent-primary)] font-mono border border-[var(--border-color)]">
+                            {q.tool_name}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-[11px] text-[var(--text-secondary)]">{q.explanation}</p>
-                    <div className="flex items-center gap-2 pt-1">
+                    <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">{q.explanation}</p>
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
                       {q.options?.map((opt: any) => (
                         <button
                           key={String(opt)}
                           type="button"
-                          onClick={() => setInterviewAnswers(prev => ({ ...prev, [q.id]: opt }))}
-                          className={`px-3 py-1 text-xs rounded-lg font-semibold transition-all border ${
+                          onClick={() => setInterviewAnswers((prev) => ({ ...prev, [q.id]: opt }))}
+                          className={`px-3 py-1.5 text-xs rounded-lg font-semibold transition-all border ${
                             interviewAnswers[q.id] === opt
-                              ? "bg-[var(--accent-primary)] text-white border-[var(--accent-primary)]"
+                              ? "bg-[var(--accent-primary)] text-white border-[var(--accent-primary)] shadow-sm"
                               : "bg-[var(--surface-card)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]"
                           }`}
                         >
                           {String(opt)}
+                          {opt === q.default_value && (
+                            <span className="ml-1.5 text-[9px] opacity-75 font-normal">(AI Rec)</span>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -592,26 +799,135 @@ if egress_res.json().get("decision") == "BLOCK":
                 ))}
               </div>
 
-              {/* Hardened Contract Preview */}
+              {/* Hardened Contract & Validation Tests Package Preview */}
               {hardenResult && (
-                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-emerald-400">
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-bold text-emerald-400">
                     <span className="flex items-center gap-1.5">
-                      <CheckCircle2 className="h-4 w-4" />
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
                       <span>SecurityContract v2.0 Synthesized & Cryptographically Sealed</span>
                     </span>
-                    <span className="font-mono text-[10px] text-slate-400">
-                      SHA-256: {hardenResult.cryptographic_seal.substring(0, 16)}...
+                    <span className="font-mono text-[10px] text-slate-400 bg-[var(--surface-card)] px-2 py-1 rounded border border-[var(--border-color)]">
+                      SHA-256: {hardenResult.cryptographic_seal.substring(0, 24)}...
                     </span>
                   </div>
-                  <pre className="p-3 rounded-lg bg-[var(--surface-card)] border border-[var(--border-color)] font-mono text-[11px] text-[var(--text-primary)] overflow-x-auto max-h-48">
-                    {hardenResult.policy_yaml}
-                  </pre>
+
+                  {/* Tabs: contracts.yaml vs validation_tests */}
+                  <div className="flex items-center gap-2 border-b border-emerald-500/20 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => setPolicyTab("yaml")}
+                      className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                        policyTab === "yaml"
+                          ? "bg-[var(--surface-card)] text-emerald-400 border border-emerald-500/30"
+                          : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                      }`}
+                    >
+                      Formal Policy (contracts.yaml)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPolicyTab("tests")}
+                      className={`px-3 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                        policyTab === "tests"
+                          ? "bg-[var(--surface-card)] text-emerald-400 border border-emerald-500/30"
+                          : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                      }`}
+                    >
+                      <span>Methodology Validation Tests</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">
+                        {hardenResult.validation_tests?.length || 0}
+                      </span>
+                    </button>
+                  </div>
+
+                  {policyTab === "yaml" && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[11px] text-[var(--text-secondary)]">
+                        <span>Structured policy definition compiling Invariant #1 invariants and parameters.</span>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(hardenResult.policy_yaml, "yaml_policy")}
+                          className="flex items-center gap-1 text-xs text-emerald-400 hover:underline font-semibold"
+                        >
+                          {copiedKey === "yaml_policy" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          <span>{copiedKey === "yaml_policy" ? "Copied!" : "Copy YAML"}</span>
+                        </button>
+                      </div>
+                      <pre className="p-3.5 rounded-lg bg-[var(--surface-card)] border border-[var(--border-color)] font-mono text-[11px] text-[var(--text-primary)] overflow-x-auto max-h-56 leading-relaxed">
+                        {hardenResult.policy_yaml}
+                      </pre>
+                    </div>
+                  )}
+
+                  {policyTab === "tests" && (
+                    <div className="space-y-2">
+                      <div className="text-[11px] text-[var(--text-secondary)]">
+                        Auto-generated Positive & Negative test fixtures confirming policy compliance prior to runtime enforcement (Methodology Module 1, Stage 3).
+                      </div>
+                      <div className="rounded-lg border border-[var(--border-color)] overflow-hidden">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-[var(--surface-card)] text-[var(--text-secondary)] font-bold border-b border-[var(--border-color)]">
+                            <tr>
+                              <th className="p-2.5">Test ID</th>
+                              <th className="p-2.5">Type</th>
+                              <th className="p-2.5">Target Tool</th>
+                              <th className="p-2.5">Expected Decision</th>
+                              <th className="p-2.5">Enforcement Stage</th>
+                              <th className="p-2.5">Fixture Description</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[var(--border-color)] bg-[var(--surface-inset)]">
+                            {hardenResult.validation_tests?.map((t: any) => (
+                              <tr key={t.id} className="hover:bg-[var(--surface-card)]/50">
+                                <td className="p-2.5 font-mono text-[11px] font-bold text-[var(--text-primary)]">
+                                  {t.id}
+                                </td>
+                                <td className="p-2.5">
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      t.type === "POSITIVE"
+                                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                        : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                                    }`}
+                                  >
+                                    {t.type}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 font-mono text-[11px] text-slate-300">
+                                  {t.tool}
+                                </td>
+                                <td className="p-2.5">
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                      t.expected_decision === "ALLOW"
+                                        ? "bg-emerald-500/10 text-emerald-400"
+                                        : "bg-rose-500/10 text-rose-400"
+                                    }`}
+                                  >
+                                    {t.expected_decision}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-[11px] text-[var(--text-secondary)]">
+                                  {t.enforcement_stage}
+                                </td>
+                                <td className="p-2.5 text-[11px] text-[var(--text-secondary)] max-w-xs truncate">
+                                  {t.description}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
+              {/* Control Buttons */}
               <div className="pt-2 flex items-center justify-between">
                 <button
+                  type="button"
                   onClick={() => setStep(1)}
                   className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--surface-inset)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)]"
                 >
@@ -620,9 +936,10 @@ if egress_res.json().get("decision") == "BLOCK":
 
                 {!policyApproved ? (
                   <button
+                    type="button"
                     onClick={handleApproveAndSealPolicy}
                     disabled={conductingInterview}
-                    className="flex items-center gap-2 px-5 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-md disabled:opacity-50"
+                    className="flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-md disabled:opacity-50"
                   >
                     {conductingInterview ? (
                       <>
@@ -632,15 +949,16 @@ if egress_res.json().get("decision") == "BLOCK":
                     ) : (
                       <>
                         <ShieldCheck className="h-3.5 w-3.5" />
-                        <span>Approve Policy & Unlock Keys (Invariant #1)</span>
+                        <span>Approve Policy & Compile Security Contract →</span>
                       </>
                     )}
                   </button>
                 ) : (
                   <button
+                    type="button"
                     onClick={handleGenerateProductionKeys}
                     disabled={generatingKeys}
-                    className="flex items-center gap-2 px-5 py-2 text-xs font-bold rounded-xl bg-[var(--accent-primary)] hover:opacity-90 text-white transition-all shadow-md disabled:opacity-50"
+                    className="flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-xl bg-[var(--accent-primary)] hover:opacity-90 text-white transition-all shadow-md disabled:opacity-50"
                   >
                     {generatingKeys ? (
                       <>
@@ -756,10 +1074,22 @@ if egress_res.json().get("decision") == "BLOCK":
 
               <div className="flex items-center justify-between pt-2">
                 <button
+                  type="button"
                   onClick={() => {
                     setStep(1);
                     setActiveProjectId(null);
                     setPolicyApproved(false);
+                    setHardenResult(null);
+                    setIssuedDualKeys(null);
+                    setNewProjectName("");
+                    setProjectDomain("");
+                    setCustomTools("");
+                    setOverviewMd("");
+                    setDetectedPrivileges([]);
+                    setDetectedConflicts([]);
+                    setMissingSafeguards([]);
+                    setInterviewQuestions([]);
+                    setInterviewAnswers({});
                   }}
                   className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--surface-inset)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)]"
                 >
