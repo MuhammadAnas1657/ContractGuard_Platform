@@ -10,11 +10,13 @@ yarn-debug.log*
 yarn-error.log*
 
 # Python
+__pycache__/
 backend/__pycache__/
 backend/*/__pycache__/
 backend/*/*/__pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
 backend/.venv/
 .venv/
 env/
@@ -22,6 +24,7 @@ venv/
 *.egg-info/
 dist/
 build/
+*.tsbuildinfo
 
 # Local databases & environment secrets
 *.db

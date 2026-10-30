@@ -1,14 +1,16 @@
 from ..database import SessionLocal
 from ..models.db_models import AttackSignatureRecord
 from .signature_db import FastAttackSignatureDB
+from .vector_attack_db import vector_attack_db
 
 def seed_attack_signatures():
-    """Seeds the PostgreSQL database with known attack patterns if empty."""
+    """Seeds the database with both fast regex rules and expanded vector attack patterns."""
     db = SessionLocal()
     try:
-        count = db.query(AttackSignatureRecord).count()
-        if count == 0:
-            for entry in FastAttackSignatureDB.KNOWN_ATTACK_PATTERNS:
+        # 1. Seed Fast Regex Rules
+        for entry in FastAttackSignatureDB.KNOWN_ATTACK_PATTERNS:
+            existing = db.query(AttackSignatureRecord).filter(AttackSignatureRecord.id == entry["id"]).first()
+            if not existing:
                 rec = AttackSignatureRecord(
                     id=entry["id"],
                     pattern=entry["pattern"],
@@ -17,10 +19,14 @@ def seed_attack_signatures():
                     description=f"Precompiled {entry['severity']} severity rule"
                 )
                 db.add(rec)
-            db.commit()
-            print(f"[ContractGuard] Successfully seeded {len(FastAttackSignatureDB.KNOWN_ATTACK_PATTERNS)} attack signatures into PostgreSQL.")
-        else:
-            print(f"[ContractGuard] Attack signatures already present in PostgreSQL ({count} rules).")
+        db.commit()
+
+        # 2. Seed Expanded Vector Dataset
+        vector_count = vector_attack_db.seed_to_db(db, overwrite=False)
+
+        # 3. Reload in-memory vector index from DB
+        loaded_count = vector_attack_db.sync_from_db(db)
+        print(f"[ContractGuard] Attack database ready: {loaded_count} persistent signatures loaded.")
     except Exception as e:
         print(f"[ContractGuard] Warning during signature seeding: {e}")
         db.rollback()

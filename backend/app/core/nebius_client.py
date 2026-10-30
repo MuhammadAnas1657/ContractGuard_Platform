@@ -143,55 +143,13 @@ Respond with a JSON array of objects with keys: "id", "tool_name", "parameter", 
             except Exception:
                 pass
 
-        # High-quality contextual questions based on discovered tool schemas
-        questions = []
-        has_refund = any(any(k in t["name"].lower() for k in ["refund", "pay", "transfer", "wire"]) for t in tools)
-        has_email = any(any(k in t["name"].lower() for k in ["email", "ticket", "ingress", "issue", "statement"]) for t in tools)
-        fin_tool = next((t["name"] for t in tools if any(k in t["name"].lower() for k in ["refund", "pay", "transfer", "wire"])), "process_refund")
-
-        if has_refund:
-            questions.append({
-                "id": "q_single_ceiling",
-                "tool_name": fin_tool,
-                "parameter": "amount",
-                "question": f"I detected financial tool '{fin_tool}'. What is the maximum single transaction limit ($)?",
-                "default_value": "500.00",
-                "explanation": "Prevents catastrophic single-call fund drainage."
-            })
-            questions.append({
-                "id": "q_cumulative_budget",
-                "tool_name": fin_tool,
-                "parameter": "global",
-                "question": "What is the maximum cumulative budget across an entire customer session ($)?",
-                "default_value": "1000.00",
-                "explanation": "Stops multi-turn salami-slicing compositional attacks."
-            })
-
-        if has_email or has_refund:
-            questions.append({
-                "id": "q_account_source",
-                "tool_name": fin_tool if has_refund else "agent_core",
-                "parameter": "target_account",
-                "question": "Can external customer email text, retrieved documents, or ticket comments dictate the recipient account or wallet?",
-                "default_value": "No, strictly forbidden",
-                "explanation": "TCEAV Parameter-Purpose Admissibility prevents indirect injection payee hijacking."
-            })
-
-        questions.append({
-            "id": "q_denied_tools",
-            "tool_name": "global_envelope",
-            "parameter": "denied_tools",
-            "question": "Which administrative or destructive system tools must NEVER be called by this agent?",
-            "default_value": "execute_shell, delete_database, format_disk, drop_tables, eval",
-            "explanation": "Hard perimeter boundary stops direct privilege escalation."
-        })
-
-        return questions
+        from .policy_compiler import PolicyGapDetector
+        return PolicyGapDetector.generate_interview_questions(tools)
 
     def synthesize_policy(
         self,
         tools: List[Dict[str, Any]],
-        answers: Dict[str, str],
+        answers: Dict[str, Any],
         agent_name: str = "CustomAgent",
         api_key: Optional[str] = None
     ) -> str:
@@ -243,69 +201,12 @@ task_invariants:
             except Exception:
                 pass
 
-        single_ceiling = answers.get("q_single_ceiling", "500.00")
-        cumulative_budget = answers.get("q_cumulative_budget", "1000.00")
-        raw_denied = answers.get("q_denied_tools", "execute_shell, delete_database, format_disk, drop_tables, eval")
-        denied_list = [d.strip() for d in raw_denied.split(",") if d.strip()]
-        for std_banned in ["execute_shell", "delete_database", "format_disk", "drop_tables", "eval"]:
-            if std_banned not in denied_list:
-                denied_list.append(std_banned)
-        denied_yaml = "\n".join(f'    - "{d}"' for d in denied_list)
-
-        yaml_template = f"""version: "2.0"
-agent_metadata:
-  agent_name: "{agent_name}"
-  version: "1.0.0"
-  status: "draft_pending_human_approval"
-  synthesized_by: "NVIDIA Nemotron-70B (Nebius Token Factory)"
-
-global_envelope:
-  max_cumulative_budget: {cumulative_budget}
-  max_tool_invocations: 30
-  allowed_domains:
-    - "*.company.com"
-    - "api.stripe.com"
-  denied_tools:
-{denied_yaml}
-
-tools:
-  read_customer_email:
-    description: "Reads incoming customer email or ticket text"
-    effects: ["data.ingress"]
-    requires_semantic_verification: false
-
-  lookup_customer_db:
-    description: "Fetches verified customer order and account data"
-    effects: ["data.ingress"]
-    requires_semantic_verification: false
-
-  process_refund:
-    description: "Issues a financial refund to customer payment method"
-    effects: ["financial.transfer"]
-    requires_semantic_verification: false
-    parameters:
-      amount:
-        param_type: "number"
-        max_value: {single_ceiling}
-        source_authority: ["authenticated_user", "verified_invoice_db"]
-      target_account:
-        param_type: "string"
-        source_authority: ["authenticated_user", "verified_customer_profile"]
-        untrusted_sources_blocked: ["customer_email", "untrusted_external", "web_scrape"]
-
-  reply_to_user:
-    description: "Sends conversational response back to the user"
-    effects: ["ui.output"]
-    requires_semantic_verification: true
-
-task_invariants:
-  prohibit_task_switch: true
-  allowed_transitions:
-    read_customer_email: ["lookup_customer_db", "reply_to_user"]
-    lookup_customer_db: ["process_refund", "reply_to_user"]
-    process_refund: ["reply_to_user"]
-"""
-        return yaml_template
+        from .policy_compiler import PolicyCompiler
+        return PolicyCompiler.synthesize_policy(
+            tools=tools,
+            answers=answers,
+            agent_name=agent_name
+        )
 
     def propose_agent_action(
         self,

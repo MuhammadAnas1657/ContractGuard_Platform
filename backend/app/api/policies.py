@@ -1,15 +1,17 @@
 import uuid
 import yaml
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Dict, Any, Optional, Union
 
 from ..database import get_db
-from ..models.db_models import PolicyRecord
+from ..models.db_models import PolicyRecord, ProjectRecord
 from ..models.schemas import (
     ToolDefinitionSchema,
     InterviewQuestionSchema,
     InterviewQuestionsResponse,
+    DiscoveredToolsResponse,
+    ZipIngestResponseSchema,
     PolicySynthesizeRequest,
     PolicySynthesizeResponse,
     PolicyValidateRequest,
@@ -18,22 +20,123 @@ from ..models.schemas import (
     PolicyApproveResponse
 )
 from ..core.nebius_client import nebius_service
-from ..core.policy_compiler import policy_compiler
+from ..core.policy_compiler import policy_compiler, PolicyGapDetector, PolicyCompiler
+from ..core.zip_extractor import ZipToolExtractor
+from ..core.key_service import provision_dual_keys_for_project
 from .auth import require_auth
 
 router = APIRouter(prefix="/policy", tags=["Policies (M1 Control Plane)"])
 
 
+@router.post("/ingest-zip", response_model=DiscoveredToolsResponse)
+async def ingest_agent_zip(
+    file: UploadFile = File(...),
+    project_name: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Zero-Trust Developer Code Ingestion:
+    Upload an agent .zip file to sandboxed AST parser. Extracts tools without running code,
+    runs 7-canonical gap detection, generates interview questions, and provisions dual API keys.
+    """
+    if not file.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Only .zip archives are supported.")
+
+    content = await file.read()
+    try:
+        extracted_files, tools, _ = ZipToolExtractor.extract_tools_from_zip(
+            content, raise_on_traversal=True, raise_on_encrypted=True
+        )
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+    proj_id = f"proj_{uuid.uuid4().hex[:8]}"
+    name = project_name or file.filename.replace(".zip", "")
+
+    # Run gap detection and question generation
+    gaps = PolicyGapDetector.detect_gaps(tools)
+    questions_raw = PolicyGapDetector.generate_interview_questions(tools, gaps)
+    questions = [InterviewQuestionSchema(**q) for q in questions_raw]
+
+    # Synthesize draft policy
+    draft_yaml = PolicyCompiler.synthesize_policy(tools=tools, answers={}, agent_name=name)
+    parsed_draft = yaml.safe_load(draft_yaml) or {}
+
+    # Save project record
+    record = ProjectRecord(
+        id=proj_id,
+        name=name,
+        filename=file.filename,
+        extracted_files=extracted_files,
+        discovered_tools=tools,
+        policy_yaml=draft_yaml,
+        policy_json=parsed_draft
+    )
+    db.add(record)
+    db.commit()
+
+    # Auto-provision dual keys
+    provision_dual_keys_for_project(
+        db=db,
+        project_id=proj_id,
+        project_name=name
+    )
+
+    return DiscoveredToolsResponse(
+        project_id=proj_id,
+        filename=file.filename,
+        extracted_files=extracted_files,
+        tools=[ToolDefinitionSchema(**t) for t in tools],
+        detected_gaps=gaps,
+        draft_policy=parsed_draft,
+        questions=questions
+    )
+
+
 @router.post("/interview-questions", response_model=InterviewQuestionsResponse)
 def get_interview_questions(
-    tools: List[ToolDefinitionSchema],
-    api_key: Optional[str] = None
+    payload: Any = Body(...),
+    api_key: Optional[str] = None,
+    db: Session = Depends(get_db)
 ):
-    """Uses NVIDIA Nemotron to generate context-aware security interview questions for the tools."""
-    tools_dict = [t.model_dump() for t in tools]
-    questions = nebius_service.generate_interview_questions(tools_dict, api_key=api_key)
+    """
+    Generates context-aware security interview questions based on the 7 canonical policy gaps.
+    Polymorphic: accepts either a raw list of ToolDefinitionSchema OR a request object with project_id and tools.
+    """
+    tools_dict: List[Dict[str, Any]] = []
+    gaps_input: Optional[List[str]] = None
+    req_api_key = api_key
+
+    if isinstance(payload, list):
+        for item in payload:
+            if isinstance(item, dict):
+                tools_dict.append(item)
+            elif hasattr(item, "model_dump"):
+                tools_dict.append(item.model_dump())
+    elif isinstance(payload, dict):
+        raw_tools = payload.get("tools") or []
+        for item in raw_tools:
+            if isinstance(item, dict):
+                tools_dict.append(item)
+            elif hasattr(item, "model_dump"):
+                tools_dict.append(item.model_dump())
+
+        proj_id = payload.get("project_id")
+        if not tools_dict and proj_id:
+            proj = db.query(ProjectRecord).filter(ProjectRecord.id == proj_id).first()
+            if proj and proj.discovered_tools:
+                tools_dict = proj.discovered_tools
+
+        gaps_input = payload.get("gaps")
+        if payload.get("api_key"):
+            req_api_key = payload.get("api_key")
+
+    detected_gaps = gaps_input if gaps_input is not None and len(gaps_input) > 0 else PolicyGapDetector.detect_gaps(tools_dict)
+    questions = PolicyGapDetector.generate_interview_questions(tools_dict, detected_gaps)
+
     return InterviewQuestionsResponse(
-        questions=[InterviewQuestionSchema(**q) for q in questions]
+        questions=[InterviewQuestionSchema(**q) for q in questions],
+        gaps=detected_gaps
     )
 
 
@@ -44,17 +147,31 @@ def synthesize_policy(
     db: Session = Depends(get_db)
 ):
     """
-    Compiles developer answers into a typed contracts.yaml draft via Nemotron-70B.
+    Compiles developer answers and tool limits into a typed contracts.yaml draft.
     Invariant #1: AI output is stored as an unapproved DRAFT (is_active=False) and statically linted;
     explicit human approval via /approve is required to freeze and activate it.
     """
-    tools_dict = [t.model_dump() for t in req.tools]
-    yaml_str = nebius_service.synthesize_policy(
-        tools=tools_dict,
-        answers=req.answers,
-        agent_name=req.agent_name,
-        api_key=req.api_key
-    )
+    tools_dict = [t.model_dump() for t in (req.tools or [])]
+    agent_name = req.agent_name
+
+    # If tools list is empty and project_id is provided, load tools from project
+    if not tools_dict and req.project_id:
+        proj = db.query(ProjectRecord).filter(ProjectRecord.id == req.project_id).first()
+        if proj:
+            if proj.discovered_tools:
+                tools_dict = proj.discovered_tools
+            if proj.name:
+                agent_name = proj.name
+
+    try:
+        yaml_str = PolicyCompiler.synthesize_policy(
+            tools=tools_dict,
+            answers=req.answers,
+            agent_name=agent_name,
+            tool_limits=req.tool_limits
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
 
     try:
         parsed = yaml.safe_load(yaml_str) or {}
@@ -66,20 +183,32 @@ def synthesize_policy(
     policy_id = f"pol_{uuid.uuid4().hex[:8]}"
     record = PolicyRecord(
         id=policy_id,
-        agent_name=req.agent_name,
+        project_id=req.project_id,
+        agent_name=agent_name,
         version="1.0.0-draft",
         yaml_content=yaml_str,
         parsed_json=parsed,
-        is_active=False  # Remains draft until developer approves
+        is_active=False  # Invariant #1: Remains draft until developer approves
     )
     db.add(record)
+
+    # Link policy to project if project_id is provided
+    if req.project_id:
+        proj = db.query(ProjectRecord).filter(ProjectRecord.id == req.project_id).first()
+        if proj:
+            proj.policy_yaml = yaml_str
+            proj.policy_json = parsed
+
     db.commit()
 
     return PolicySynthesizeResponse(
         id=policy_id,
-        yaml_content=yaml_str,
-        parsed_contract=parsed,
         policy_id=policy_id,
+        project_id=req.project_id,
+        yaml_content=yaml_str,
+        contract_yaml=yaml_str,
+        parsed_contract=parsed,
+        policy=parsed,
         status="DRAFT",
         is_active=False,
         signature="",
@@ -194,32 +323,74 @@ def approve_and_freeze_policy(
     )
 
 
-@router.get("/{policy_id}")
-def get_policy_by_id(policy_id: str, db: Session = Depends(get_db)):
-    """Returns policy version with redacted metadata."""
-    signed = policy_compiler.get_approved(policy_id)
+def _lookup_policy(identifier: str, db: Session) -> Dict[str, Any]:
+    """Helper to query policy by policy_id or project_id."""
+    signed = policy_compiler.get_approved(identifier)
     if signed:
         return {
             "policy_id": signed.policy_id,
+            "id": signed.policy_id,
+            "project_id": None,
             "version": signed.version,
             "status": signed.status,
+            "is_active": True,
             "approved_by": signed.approved_by,
             "sha256_signature": signed.sha256_signature,
             "immutable": signed.immutable,
-            "parsed_contract": signed.parsed_contract
+            "yaml_content": signed.contract_yaml,
+            "contract_yaml": signed.contract_yaml,
+            "parsed_contract": signed.parsed_contract,
+            "policy": signed.parsed_contract
         }
 
-    rec = db.query(PolicyRecord).filter(PolicyRecord.id == policy_id).first()
-    if not rec:
-        raise HTTPException(status_code=404, detail=f"Policy '{policy_id}' not found.")
-    return {
-        "policy_id": rec.id,
-        "agent_name": rec.agent_name,
-        "version": rec.version,
-        "status": "APPROVED" if rec.is_active else "DRAFT",
-        "is_active": rec.is_active,
-        "parsed_contract": rec.parsed_json
-    }
+    rec = db.query(PolicyRecord).filter(
+        (PolicyRecord.id == identifier) | (PolicyRecord.project_id == identifier)
+    ).order_by(PolicyRecord.created_at.desc()).first()
+
+    if rec:
+        return {
+            "policy_id": rec.id,
+            "id": rec.id,
+            "project_id": rec.project_id,
+            "agent_name": rec.agent_name,
+            "version": rec.version,
+            "status": "APPROVED" if rec.is_active else "DRAFT",
+            "is_active": rec.is_active,
+            "yaml_content": rec.yaml_content,
+            "contract_yaml": rec.yaml_content,
+            "parsed_contract": rec.parsed_json or {},
+            "policy": rec.parsed_json or {}
+        }
+
+    proj = db.query(ProjectRecord).filter(ProjectRecord.id == identifier).first()
+    if proj and proj.policy_yaml:
+        return {
+            "policy_id": f"pol_{proj.id}",
+            "id": f"pol_{proj.id}",
+            "project_id": proj.id,
+            "agent_name": proj.name,
+            "version": "1.0.0-draft",
+            "status": "DRAFT",
+            "is_active": False,
+            "yaml_content": proj.policy_yaml,
+            "contract_yaml": proj.policy_yaml,
+            "parsed_contract": proj.policy_json or {},
+            "policy": proj.policy_json or {}
+        }
+
+    raise HTTPException(status_code=404, detail=f"Policy or project '{identifier}' not found.")
+
+
+@router.get("/project/{project_id}")
+def get_policy_by_project_id(project_id: str, db: Session = Depends(get_db)):
+    """Retrieves compiled policy contract for a project by project ID."""
+    return _lookup_policy(project_id, db)
+
+
+@router.get("/{policy_id}")
+def get_policy_by_id(policy_id: str, db: Session = Depends(get_db)):
+    """Returns policy version or project policy by ID."""
+    return _lookup_policy(policy_id, db)
 
 
 @router.post("/download-bundle")
@@ -229,7 +400,6 @@ def download_guarded_bundle(
 ):
     """Generates and streams a downloadable zip containing contracts.yaml, drop-in middleware, and integration guide."""
     from fastapi.responses import Response
-    from ..core.zip_extractor import ZipToolExtractor
 
     yaml_content = payload.get("yaml_content", "")
     agent_name = payload.get("agent_name", "GuardedAgent")

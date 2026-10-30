@@ -26,24 +26,37 @@
 
 ---
 
-## ⚡ Quickstart
+## ⚡ Quickstart (100% Native Non-Docker Full Stack)
 
-### Option A: Docker Compose (One-Click Full Stack)
-```bash
-# Clone and enter repo
-git clone https://github.com/your-username/ContractGuard_Platform.git
+### Option A: One-Click Native Launcher (Next.js 14 + FastAPI + SQLAlchemy + PostgreSQL)
+```powershell
+# 1. Enter platform directory
 cd ContractGuard_Platform
 
-# Set environment
+# 2. Configure environment (connects natively to postgresql://postgres:hackathon@localhost:5432/hackathon)
 cp .env.example .env
 
-# Launch PostgreSQL, FastAPI Backend, and Next.js Studio
-docker compose up -d
+# 3. Launch Native PostgreSQL Probe, FastAPI Backend (Port 8080), and Next.js 14 Studio (Port 3001)
+.\start_platform.ps1
+# Or on Command Prompt:
+start_platform.bat
 ```
-- **Web Studio & SOC Dashboard:** Open [http://localhost:3001](http://localhost:3001)
-- **FastAPI OpenAPI Swagger Docs:** Open [http://localhost:8080/docs](http://localhost:8080/docs)
+- **Web Studio & SOC Dashboard (3 Decluttered Views: `Dashboard` | `Projects` | `Settings`):** Open [http://localhost:3001](http://localhost:3001)
+- **FastAPI OpenAPI Swagger Docs:** Open [http://127.0.0.1:8080/docs](http://127.0.0.1:8080/docs)
+- **Live PostgreSQL & Provider Readiness Probe:** Open [http://127.0.0.1:8080/ready](http://127.0.0.1:8080/ready)
 
-### Option B: Local Python SDK Installation
+### Option B: Manual Native Terminal Startup
+```powershell
+# Terminal 1: Start FastAPI + SQLAlchemy Backend
+$env:PYTHONPATH=".;backend;sdk/python"
+python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8080 --reload
+
+# Terminal 2: Start Next.js 14 Frontend
+cd frontend
+npm run dev
+```
+
+### Option C: Local Python SDK Installation
 ```bash
 # Install the official Python SDK
 pip install -e sdk/python

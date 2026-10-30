@@ -21,6 +21,8 @@ class ProjectRecord(Base):
     filename = Column(String(255), nullable=True)
     extracted_files = Column(JSON, default=list)
     discovered_tools = Column(JSON, default=list)
+    policy_yaml = Column(Text, nullable=True)
+    policy_json = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 class PolicyRecord(Base):
@@ -67,9 +69,11 @@ class ApiKeyRecord(Base):
 
     id = Column(String(64), primary_key=True, index=True)
     user_id = Column(String(64), index=True, nullable=False)
+    project_id = Column(String(64), index=True, nullable=True)
     key_name = Column(String(255), default="Production Gateway Key")
     key_prefix = Column(String(32), nullable=False)  # Displayed to user e.g. cgx_live_ab12...
     key_hash = Column(String(255), nullable=False)   # SHA-256 hash for secure verification
+    key_type = Column(String(32), default="gateway", nullable=False)  # "ingress" | "egress" | "gateway"
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     last_used_at = Column(DateTime, nullable=True)

@@ -35,38 +35,70 @@ class DiscoveredToolsResponse(BaseModel):
     filename: Optional[str] = None
     extracted_files: List[str] = Field(default_factory=list)
     tools: List[ToolDefinitionSchema] = Field(default_factory=list)
+    detected_gaps: List[str] = Field(default_factory=list)
+    draft_policy: Optional[Dict[str, Any]] = None
+    questions: List[InterviewQuestionSchema] = Field(default_factory=list)
+    dual_keys: Optional[Dict[str, Any]] = None
+
+
+ZipIngestResponseSchema = DiscoveredToolsResponse
 
 
 # --- Interview & Policy Synthesis Schemas ---
 class InterviewQuestionSchema(BaseModel):
     id: str
-    tool_name: str
-    parameter: str
+    title: Optional[str] = ""
     question: str
-    default_value: str
+    prompt: Optional[str] = None
     explanation: Optional[str] = ""
+    options: List[str] = Field(default_factory=list)
+    default_value: str = "500.00"
+    gap_type: Optional[str] = "spending_limits"
+    required: bool = True
+    tool_name: Optional[str] = ""
+    parameter: Optional[str] = ""
+
+
+class InterviewQuestionsRequest(BaseModel):
+    project_id: Optional[str] = None
+    tools: Optional[List[ToolDefinitionSchema]] = Field(default_factory=list)
+    gaps: Optional[List[str]] = Field(default_factory=list)
+    current_policy: Optional[Dict[str, Any]] = None
+    api_key: Optional[str] = None
 
 
 class InterviewQuestionsResponse(BaseModel):
     questions: List[InterviewQuestionSchema]
+    gaps: List[str] = Field(default_factory=list)
 
 
 class PolicySynthesizeRequest(BaseModel):
     agent_name: str = "CustomAgent"
-    tools: List[ToolDefinitionSchema]
-    answers: Dict[str, str]
+    project_id: Optional[str] = None
+    tools: Optional[List[ToolDefinitionSchema]] = Field(default_factory=list)
+    answers: Dict[str, Any] = Field(default_factory=dict)
+    tool_limits: Optional[Dict[str, Any]] = None
     api_key: Optional[str] = None
+
+
+PolicySynthesizeRequestSchema = PolicySynthesizeRequest
 
 
 class PolicySynthesizeResponse(BaseModel):
     id: Optional[str] = None
-    yaml_content: str
-    parsed_contract: Dict[str, Any]
     policy_id: Optional[str] = None
+    project_id: Optional[str] = None
+    yaml_content: str
+    contract_yaml: Optional[str] = None
+    parsed_contract: Dict[str, Any]
+    policy: Optional[Dict[str, Any]] = None
     status: str = "DRAFT"
     is_active: bool = False
     signature: str = ""
     lint_result: Optional[Dict[str, Any]] = None
+
+
+PolicySynthesizeResponseSchema = PolicySynthesizeResponse
 
 
 class PolicyValidateRequest(BaseModel):
@@ -143,3 +175,50 @@ class MetricsSummaryResponse(BaseModel):
     industry_comparison: List[Dict[str, Any]]
     oracle_suite_results: List[Dict[str, Any]] = Field(default_factory=list)
     latex_table: str = ""
+    auto_switching_telemetry: Optional[Dict[str, Any]] = None
+
+
+# --- Project Management Schemas ---
+class ProjectCreateRequest(BaseModel):
+    name: str = Field(..., description="Project name")
+    filename: Optional[str] = Field(default=None, description="Optional uploaded zip file name")
+    user_id: Optional[str] = None
+
+
+class DualKeyInfoSchema(BaseModel):
+    key_id: str
+    key_prefix: str
+    key_type: str
+    is_active: bool
+    created_at: str
+    last_used_at: Optional[str] = None
+    raw_key: Optional[str] = None
+
+
+class ProjectListItemResponse(BaseModel):
+    id: str
+    name: str
+    filename: Optional[str] = None
+    user_id: Optional[str] = None
+    created_at: str
+    tools_count: int
+    extracted_files_count: int
+    policy_status: str  # "APPROVED", "DRAFT", or "NONE"
+    ingress_key_prefix: Optional[str] = None
+    egress_key_prefix: Optional[str] = None
+    dual_keys: Dict[str, Optional[DualKeyInfoSchema]]
+
+
+class ProjectDetailResponse(BaseModel):
+    id: str
+    name: str
+    filename: Optional[str] = None
+    user_id: Optional[str] = None
+    created_at: str
+    tools_count: int
+    extracted_files: List[str]
+    discovered_tools: List[Dict[str, Any]]
+    policy: Optional[Dict[str, Any]] = None
+    policy_yaml: Optional[str] = None
+    policy_status: Optional[str] = "NONE"
+    dual_keys: Dict[str, Optional[DualKeyInfoSchema]]

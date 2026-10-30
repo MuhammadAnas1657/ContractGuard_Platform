@@ -4,15 +4,19 @@ Handles trust envelopes, bounded Base64/Unicode normalization, and advisory peri
 """
 from __future__ import annotations
 import base64
+from functools import lru_cache
 import hashlib
 import re
 import unicodedata
 import time
 from enum import Enum
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from pydantic import BaseModel, Field
 
 from .signature_db import signature_db
+
+_ZERO_WIDTH_REGEX = re.compile(r"[\u200b\u200c\u200d\ufeff]")
+_B64_FULL_REGEX = re.compile(r"^[A-Za-z0-9+/]+={0,2}$")
 
 
 class SourceTrustLevel(str, Enum):
@@ -64,17 +68,8 @@ class InputNormalizer:
     B64_TOKEN_REGEX = re.compile(r"[A-Za-z0-9+/]{12,}={0,2}")
 
     @classmethod
-    def wrap_envelope(
-        cls,
-        text: str,
-        source_type: SourceTrustLevel = SourceTrustLevel.UNTRUSTED_EXTERNAL,
-        source_name: str = "incoming_stream",
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> ContentEnvelope:
-        clean_text = text or ""
-        if len(clean_text.encode("utf-8")) > cls.MAX_PAYLOAD_BYTES:
-            clean_text = clean_text[:cls.MAX_PAYLOAD_BYTES]
-
+    @lru_cache(maxsize=1024)
+    def _normalize_text_cached(cls, clean_text: str) -> Tuple[str, str, Tuple[str, ...], int, bool]:
         sha = hashlib.sha256(clean_text.encode("utf-8")).hexdigest()
         cid = f"env_{sha[:12]}"
 
@@ -83,7 +78,7 @@ class InputNormalizer:
 
         # 1. Unicode Normalization (NFKC) — strips zero-width & homoglyph formatting
         nfkc_text = unicodedata.normalize("NFKC", clean_text)
-        nfkc_cleaned = re.sub(r"[\u200b\u200c\u200d\ufeff]", "", nfkc_text)
+        nfkc_cleaned = _ZERO_WIDTH_REGEX.sub("", nfkc_text)
         if nfkc_cleaned != clean_text and nfkc_cleaned not in views:
             views.append(nfkc_cleaned)
 
@@ -111,19 +106,34 @@ class InputNormalizer:
                 break
             current_candidates = next_candidates
 
-        env = ContentEnvelope(
+        is_susp = any(signature_db.scan(v) is not None for v in views)
+        return sha, cid, tuple(views), depth_reached, is_susp
+
+    @classmethod
+    def wrap_envelope(
+        cls,
+        text: str,
+        source_type: SourceTrustLevel = SourceTrustLevel.UNTRUSTED_EXTERNAL,
+        source_name: str = "incoming_stream",
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> ContentEnvelope:
+        clean_text = text or ""
+        if len(clean_text.encode("utf-8")) > cls.MAX_PAYLOAD_BYTES:
+            clean_text = clean_text[:cls.MAX_PAYLOAD_BYTES]
+
+        sha, cid, views_tuple, depth_reached, is_susp = cls._normalize_text_cached(clean_text)
+
+        return ContentEnvelope(
             content_id=cid,
             source_type=source_type,
             source_name=source_name,
             raw_text=clean_text,
-            normalized_views=views,
+            normalized_views=list(views_tuple),
             sha256_hash=sha,
             decode_depth_reached=depth_reached,
+            is_suspicious=is_susp,
             metadata=metadata or {}
         )
-        risk = cls.assess_risk(env)
-        env.is_suspicious = risk.is_suspicious
-        return env
 
     @classmethod
     def _try_bounded_b64_decode(cls, text: str) -> Optional[str]:
@@ -133,7 +143,7 @@ class InputNormalizer:
             return None
         if len(stripped) % 4 != 0:
             return None
-        if not re.match(r"^[A-Za-z0-9+/]+={0,2}$", stripped):
+        if not _B64_FULL_REGEX.match(stripped):
             return None
 
         try:

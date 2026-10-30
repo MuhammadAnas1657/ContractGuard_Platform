@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "ContractGuard Backend"
     VERSION: str = "2.0.0"
 
-    # Database Settings: PostgreSQL (hackathon database) with SQLite fallback
+    # Database Settings: Native PostgreSQL (hackathon database)
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
         "postgresql://postgres:hackathon@localhost:5432/hackathon"

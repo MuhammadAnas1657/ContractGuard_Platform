@@ -4,6 +4,7 @@ Enforces canonical effect budgets across multi-turn sessions, supports idempoten
 tracks ambiguous execution outcomes (UNKNOWN_PENDING_RECONCILIATION), and inspects output egress.
 """
 from __future__ import annotations
+import math
 import re
 import time
 import uuid
@@ -91,15 +92,26 @@ class StatefulEffectLedger:
 
     def extract_delta(self, tool_name: str, parameters: Dict[str, Any]) -> Tuple[CanonicalEffectType, float]:
         """Maps proposed tool call into a canonical effect type and financial delta."""
-        t_low = tool_name.lower()
-        # Financial tools
-        if any(term in t_low for term in ["refund", "transfer", "pay", "spend", "withdraw", "wire"]):
-            for key in ["amount", "value", "cost", "sum", "payment"]:
-                if key in parameters:
+        params = parameters or {}
+
+        # 1. Parameter-based financial delta detection (prevents tool-name obfuscation & smuggling)
+        financial_keys = ("amount", "value", "cost", "sum", "payment", "fund", "spend")
+        if isinstance(params, dict):
+            # Case-insensitive lookup of parameter keys
+            param_map = {str(k).lower(): v for k, v in params.items()}
+            for k_name, k_val in param_map.items():
+                if any(key in str(k_name).lower() for key in financial_keys) and k_val is not None:
                     try:
-                        return CanonicalEffectType.FUNDS_TRANSFER, float(parameters[key])
+                        val = float(k_val)
+                        return CanonicalEffectType.FUNDS_TRANSFER, val
                     except (ValueError, TypeError):
                         pass
+
+        # 2. Tool-name based taxonomy fallback
+        t_low = (tool_name or "").lower()
+
+        # Financial tools (even if delta is 0.0 or parameters omit explicit amount)
+        if any(term in t_low for term in ["refund", "transfer", "pay", "spend", "withdraw", "wire"]):
             return CanonicalEffectType.FUNDS_TRANSFER, 0.0
 
         # Data egress tools (email, HTTP upload, webhook, post)
@@ -128,6 +140,10 @@ class StatefulEffectLedger:
         existing reservation without double-counting the effect.
         """
         canonical_type, delta = self.extract_delta(tool_name, parameters or {})
+
+        # Non-finite and NaN delta check (prevents NaN injection bypass)
+        if not math.isfinite(delta):
+            return False, None, "Invalid effect delta (non-finite or NaN numbers are prohibited)."
 
         # Budget laundering prevention: negative effect deltas are prohibited in reservations
         if delta < 0:

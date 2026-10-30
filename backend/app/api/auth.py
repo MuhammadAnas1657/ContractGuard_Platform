@@ -99,7 +99,14 @@ def validate_api_key_str(raw_key: Optional[str], db: Session) -> Optional[Dict[s
     if key.startswith("Bearer "):
         key = key[7:].strip()
     if key == "judge_evaluator_key" or key.startswith("demo_") or key.startswith("mock_"):
-        return {"type": "demo_key", "key": key, "user_id": "usr_judge_evaluator", "role": "judge"}
+        return {
+            "type": "demo_key",
+            "key": key,
+            "user_id": "usr_judge_evaluator",
+            "role": "judge",
+            "key_type": "gateway",
+            "project_id": None
+        }
 
     key_hash = hashlib.sha256(key.encode("utf-8")).hexdigest()
     rec = db.query(ApiKeyRecord).filter(
@@ -107,7 +114,16 @@ def validate_api_key_str(raw_key: Optional[str], db: Session) -> Optional[Dict[s
         ApiKeyRecord.is_active == True
     ).first()
     if rec:
-        return {"type": "api_key", "key_id": rec.id, "user_id": rec.user_id, "key": key}
+        return {
+            "type": "api_key",
+            "key_id": rec.id,
+            "user_id": rec.user_id,
+            "project_id": rec.project_id,
+            "key_name": rec.key_name,
+            "key_prefix": rec.key_prefix,
+            "key_type": getattr(rec, "key_type", "gateway") or "gateway",
+            "key": key
+        }
     return None
 
 
@@ -130,7 +146,9 @@ def validate_bearer_token(raw_token: Optional[str], db: Session) -> Optional[Dic
             "user": user,
             "user_id": payload["sub"],
             "payload": payload,
-            "role": payload.get("role", "developer")
+            "role": payload.get("role", "developer"),
+            "key_type": "gateway",
+            "project_id": None
         }
 
     # Second check if token is structured as API key or demo key
@@ -157,8 +175,14 @@ async def require_auth(
         if res:
             return res
 
-    # 2. X-API-Key header (case-insensitive check)
-    key_hdr = x_api_key or request.headers.get("x-api-key") or request.headers.get("X-API-Key")
+    # 2. X-API-Key or X-ContractGuard-Key header (case-insensitive check)
+    key_hdr = (
+        x_api_key
+        or request.headers.get("x-api-key")
+        or request.headers.get("X-API-Key")
+        or request.headers.get("x-contractguard-key")
+        or request.headers.get("X-ContractGuard-Key")
+    )
     if key_hdr:
         res = validate_api_key_str(key_hdr, db)
         if res:

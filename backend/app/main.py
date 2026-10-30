@@ -38,6 +38,7 @@ app.include_router(metrics.router, prefix="/api")
 
 
 @app.get("/health")
+@app.get("/api/health")
 def health_check():
     """Process health check endpoint (Methodology Section 7)."""
     return {
@@ -48,6 +49,7 @@ def health_check():
 
 
 @app.get("/ready")
+@app.get("/api/ready")
 def readiness_check():
     """Database and Nebius provider readiness status (Methodology Section 7)."""
     db_ok = False

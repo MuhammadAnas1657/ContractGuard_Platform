@@ -3,7 +3,8 @@ import time
 import uuid
 import hashlib
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,14 @@ from ..core.normalizer import InputNormalizer, SourceTrustLevel
 from ..core.tceav import tceav_engine, ActionProposal, ArgumentEvidence, SourceTrust, ArgumentObservability, GuardStatus
 from ..core.effect_ledger import stateful_ledger, output_guard
 from ..core.policy_compiler import policy_compiler
+from ..core.key_service import generate_api_key_record
+from ..core.runtime_classifier import (
+    ExecutionMode,
+    classify_ingress_operation,
+    classify_egress_operation,
+    runtime_telemetry
+)
+from ..core.nvidia_client import nvidia_language_detector
 from .policies import (
     get_interview_questions,
     validate_policy_yaml,
@@ -25,7 +34,7 @@ from ..models.schemas import (
     PolicyValidateRequest,
     PolicyApproveRequest
 )
-from .auth import require_auth
+from .auth import require_auth, validate_api_key_str
 
 router = APIRouter(
     prefix="/v1",
@@ -72,6 +81,12 @@ class IngressGuardRequest(BaseModel):
     source_type: str = Field(default="authenticated_user", description="Source trust label")
     context_history: Optional[List[Dict[str, Any]]] = Field(default=None, description="Prior conversation turns and sources")
     api_key: Optional[str] = Field(default=None, description="ContractGuard Gateway API Key (cgx_live_...)")
+    tool_name: Optional[str] = Field(default=None, description="Optional target tool name hint")
+    operation_type: Optional[str] = Field(default=None, description="Optional caller hint: 'rag', 'summarize', 'tool_call'")
+    project_id: Optional[str] = Field(default=None, description="Optional project ID")
+    policy_id: Optional[str] = Field(default=None, description="Optional policy ID")
+    language_constraints: Optional[Dict[str, Any]] = Field(default=None, description="Language rules: allowed_languages, reject_foreign_scripts")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Arbitrary client metadata")
 
 
 class IngressGuardResponse(BaseModel):
@@ -82,6 +97,10 @@ class IngressGuardResponse(BaseModel):
     latency_ms: float = Field(..., description="End-to-end evaluation latency in milliseconds")
     reasons: List[str] = Field(default_factory=list, description="Detailed explanation if blocked")
     vector_match: Optional[Dict[str, Any]] = None
+    execution_mode: str = Field(default="FULL_TRI_GUARD", description="'STREAMLINED_RAG' or 'FULL_TRI_GUARD'")
+    auto_switched: bool = Field(default=False, description="True if classified as STREAMLINED_RAG")
+    classification_reason: Optional[str] = None
+    language: Optional[str] = None
 
 
 class EgressGuardRequest(BaseModel):
@@ -91,10 +110,14 @@ class EgressGuardRequest(BaseModel):
     tool_name: Optional[str] = Field(default=None, description="Name of tool proposed by LLM (e.g., 'process_refund')")
     tool_arguments: Optional[Dict[str, Any]] = None
     proposed_llm_output: Optional[str] = None
-    per_call_ceiling: Optional[float] = Field(default=500.0, description="Max spend allowed in single transaction")
-    session_budget: Optional[float] = Field(default=1000.0, description="Max cumulative spend allowed in session")
+    per_call_ceiling: Optional[float] = Field(default=None, description="Max spend allowed in single transaction")
+    session_budget: Optional[float] = Field(default=None, description="Max cumulative spend allowed in session")
     idempotency_key: Optional[str] = None
     api_key: Optional[str] = Field(default=None, description="ContractGuard Gateway API Key (cgx_live_...)")
+    project_id: Optional[str] = None
+    policy_id: Optional[str] = None
+    language_constraints: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class EgressGuardResponse(BaseModel):
@@ -106,6 +129,10 @@ class EgressGuardResponse(BaseModel):
     session_budget_remaining: float = Field(default=1000.0)
     latency_ms: float = Field(..., description="End-to-end evaluation latency in milliseconds")
     audit_trail: List[Dict[str, Any]] = Field(default_factory=list)
+    execution_mode: str = Field(default="FULL_TRI_GUARD", description="'STREAMLINED_RAG' or 'FULL_TRI_GUARD'")
+    auto_switched: bool = Field(default=False, description="True if executed via streamlined pathway")
+    bypassed_stages: List[str] = Field(default_factory=list, description="Defense stages bypassed in streamlined mode")
+    language: Optional[str] = None
 
 
 class CreateSessionRequest(BaseModel):
@@ -158,21 +185,99 @@ class ActionCheckRequest(BaseModel):
 class CreateApiKeyRequest(BaseModel):
     key_name: str = Field(default="Production Gateway Key", description="Friendly name for the API key")
     user_id: Optional[str] = None
+    project_id: Optional[str] = Field(default=None, description="Optional associated project ID")
+    key_type: Optional[str] = Field(default="gateway", description="'ingress', 'egress', or 'gateway'")
 
 
 class ApiKeyInfo(BaseModel):
     id: str
+    key_id: Optional[str] = None
     key_name: str
     key_prefix: str
     created_at: str
     is_active: bool
+    key_type: str = "gateway"
+    project_id: Optional[str] = None
 
 
 class CreateApiKeyResponse(BaseModel):
     key_id: str
     api_key: str
+    raw_key: Optional[str] = None
     key_name: str
     created_at: str
+    key_type: str = "gateway"
+    project_id: Optional[str] = None
+
+
+class LanguageDetectRequest(BaseModel):
+    text: str
+    api_key: Optional[str] = None
+
+
+class LanguageDetectResponse(BaseModel):
+    language: str
+    confidence: float
+    script: str
+    detected_scripts: List[str]
+    has_foreign_script: bool
+    has_mixed_scripts: bool
+    homoglyphs_detected: List[str]
+    latency_ms: float
+
+
+def _resolve_effective_key(
+    auth: Dict[str, Any],
+    body_api_key: Optional[str],
+    db: Session
+) -> Dict[str, Any]:
+    """
+    Resolves the active credential and returns its verified key_type and project_id.
+    Prioritizes body_api_key if explicitly provided; otherwise uses auth dependency result.
+    """
+    if body_api_key:
+        validated = validate_api_key_str(body_api_key, db)
+        if not validated:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or revoked ContractGuard API Key.")
+        return validated
+
+    if auth.get("type") in ("api_key", "demo_key"):
+        return auth
+
+    if auth.get("type") == "user_token":
+        return {"type": "user_token", "key_type": "gateway", "user_id": auth.get("user_id"), "project_id": None}
+
+    return {"type": "gateway", "key_type": "gateway", "user_id": None, "project_id": None}
+
+
+def _resolve_project_policy(
+    db: Session,
+    project_id: Optional[str] = None,
+    policy_id: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Resolves an approved policy by explicit policy_id or via the project_id bound to the dual API key.
+    Only auto-loads active (APPROVED) policies when resolving by project_id to honor Invariant #1.
+    """
+    if policy_id:
+        pol = policy_compiler.get_approved(policy_id)
+        if pol and pol.parsed_contract:
+            return pol.parsed_contract
+        rec = db.query(PolicyRecord).filter(PolicyRecord.id == policy_id).first()
+        if rec and rec.parsed_json:
+            return rec.parsed_json
+
+    if project_id:
+        rec = (
+            db.query(PolicyRecord)
+            .filter(PolicyRecord.project_id == project_id, PolicyRecord.is_active == True)
+            .order_by(PolicyRecord.created_at.desc())
+            .first()
+        )
+        if rec and rec.parsed_json:
+            return rec.parsed_json
+
+    return None
 
 
 def verify_api_key(raw_key: Optional[str], db: Session) -> bool:
@@ -557,18 +662,89 @@ def get_session_events(session_id: str):
 @router.post("/guard/ingress", response_model=IngressGuardResponse)
 def pre_llm_ingress_guard(
     req: IngressGuardRequest,
+    auth: Dict[str, Any] = Depends(require_auth),
     db: Session = Depends(get_db)
 ):
     """
     PRE-LLM GATEWAY (Placed BEFORE LLM call):
-    1. Normalizes Unicode/Base64/Hex obfuscations.
-    2. Scans Vector Attack Database for semantic cosine similarity against jailbreaks & overrides.
-    3. Blocks malicious prompts before the target LLM ever sees them.
+    1. Role Enforcement: Requires Ingress key ('cgx_ing_...') or Gateway key ('cgx_live_...'). Egress keys are forbidden (HTTP 403).
+    2. Language Policy Check: Validates prompt against allowed_languages and reject_foreign_scripts (NVIDIA LLM API / Unicode fallback).
+    3. Normalizes Unicode/Base64/Hex obfuscations.
+    4. Scans Vector Attack Database for semantic cosine similarity against jailbreaks & overrides.
+    5. Runtime Auto-Switching: Classifies into STREAMLINED_RAG vs FULL_TRI_GUARD.
     """
     start_time = time.perf_counter()
 
-    if req.api_key and not verify_api_key(req.api_key, db):
-        raise HTTPException(status_code=401, detail="Invalid or revoked ContractGuard API Key.")
+    # Step 0a: Key Role Enforcement
+    cred = _resolve_effective_key(auth, req.api_key, db)
+    key_type = cred.get("key_type", "gateway")
+    if key_type not in ("ingress", "gateway"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"Unauthorized key role '{key_type}': Pre-LLM Ingress endpoint requires an Ingress key "
+                f"(prefix 'cgx_ing_...') or Gateway key ('cgx_live_...'). Egress keys ('cgx_egr_...') are forbidden at Ingress."
+            )
+        )
+
+    # Step 0b: Language Detection & Policy Constraint Enforcement
+    lang_info = nvidia_language_detector.detect_language(req.user_prompt)
+    eff_project_id = req.project_id or cred.get("project_id")
+    bound_policy = _resolve_project_policy(db, eff_project_id, req.policy_id)
+    lang_constraints = req.language_constraints
+    if not lang_constraints and bound_policy:
+        lang_constraints = bound_policy.get("global_envelope", {}).get("language_constraints")
+
+    if lang_constraints:
+        allowed_languages = lang_constraints.get("allowed_languages", ["en"])
+        reject_foreign_scripts = lang_constraints.get("reject_foreign_scripts", True)
+
+        if reject_foreign_scripts and (lang_info.get("has_foreign_script") or lang_info.get("has_mixed_scripts")):
+            _record_session_event(
+                session_id=req.session_id,
+                stage="PRE_LLM_INGRESS_LANGUAGE",
+                decision="BLOCK",
+                reason_codes=["LANGUAGE_VIOLATION_FOREIGN_SCRIPT"],
+                latency_ms=round((time.perf_counter() - start_time) * 1000, 2)
+            )
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "decision": "BLOCK",
+                    "reason": "LANGUAGE_VIOLATION",
+                    "details": {
+                        "error": "FOREIGN_SCRIPT_DETECTED",
+                        "detected_scripts": lang_info.get("detected_scripts", []),
+                        "has_mixed_scripts": lang_info.get("has_mixed_scripts", False),
+                        "homoglyphs_detected": lang_info.get("homoglyphs_detected", []),
+                        "message": "Foreign script or mixed-script homoglyphs detected in prompt."
+                    }
+                }
+            )
+
+        detected_lang = lang_info.get("language", "en")
+        if allowed_languages and detected_lang not in allowed_languages:
+            _record_session_event(
+                session_id=req.session_id,
+                stage="PRE_LLM_INGRESS_LANGUAGE",
+                decision="BLOCK",
+                reason_codes=["LANGUAGE_VIOLATION_DISALLOWED_LANGUAGE"],
+                latency_ms=round((time.perf_counter() - start_time) * 1000, 2)
+            )
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "decision": "BLOCK",
+                    "reason": "LANGUAGE_VIOLATION",
+                    "details": {
+                        "error": "DISALLOWED_LANGUAGE",
+                        "detected_language": detected_lang,
+                        "allowed_languages": allowed_languages,
+                        "confidence": lang_info.get("confidence", 0.0),
+                        "message": f"Language '{detected_lang}' is not permitted by policy. Allowed: {allowed_languages}."
+                    }
+                }
+            )
 
     # Step 1: Input Normalization & Trust Envelope
     envelope = InputNormalizer.wrap_envelope(
@@ -585,8 +761,23 @@ def pre_llm_ingress_guard(
             threat_eval = sub_eval
             break
 
+    # Step 3: Runtime Auto-Switching Classification
+    mode, class_reason = classify_ingress_operation(
+        prompt=req.user_prompt,
+        tool_name=req.tool_name,
+        operation_type=req.operation_type,
+        metadata=req.metadata
+    )
+    is_streamlined = (mode == ExecutionMode.STREAMLINED_RAG)
+
     elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
     normalized_prompt = envelope.normalized_views[-1] if envelope.normalized_views else req.user_prompt
+
+    runtime_telemetry.record_evaluation(
+        endpoint="ingress",
+        mode=mode.value,
+        latency_ms=elapsed_ms
+    )
 
     if threat_eval["is_threat"]:
         _record_session_event(
@@ -594,7 +785,8 @@ def pre_llm_ingress_guard(
             stage="PRE_LLM_INGRESS",
             decision="BLOCK",
             reason_codes=[threat_eval["threat_family"]],
-            latency_ms=elapsed_ms
+            latency_ms=elapsed_ms,
+            metadata={"execution_mode": mode.value}
         )
         return IngressGuardResponse(
             decision="BLOCK",
@@ -606,7 +798,11 @@ def pre_llm_ingress_guard(
                 f"Perimeter Threat Blocked: Detected {threat_eval['threat_family']} pattern.",
                 f"Vector Signature Match: {threat_eval['top_match']['description'] if threat_eval['top_match'] else 'Semantic cosine distance exceeded.'}"
             ],
-            vector_match=threat_eval.get("top_match")
+            vector_match=threat_eval.get("top_match"),
+            execution_mode=mode.value,
+            auto_switched=is_streamlined,
+            classification_reason=class_reason,
+            language=lang_info.get("language")
         )
 
     _record_session_event(
@@ -614,7 +810,8 @@ def pre_llm_ingress_guard(
         stage="PRE_LLM_INGRESS",
         decision="ALLOW",
         reason_codes=["CLEAN"],
-        latency_ms=elapsed_ms
+        latency_ms=elapsed_ms,
+        metadata={"execution_mode": mode.value}
     )
     return IngressGuardResponse(
         decision="ALLOW",
@@ -623,7 +820,11 @@ def pre_llm_ingress_guard(
         sanitized_prompt=normalized_prompt,
         latency_ms=elapsed_ms,
         reasons=[],
-        vector_match=None
+        vector_match=None,
+        execution_mode=mode.value,
+        auto_switched=is_streamlined,
+        classification_reason=class_reason,
+        language=lang_info.get("language")
     )
 
 
@@ -634,121 +835,329 @@ def pre_llm_ingress_guard(
 @router.post("/guard/egress", response_model=EgressGuardResponse)
 def post_llm_egress_guard(
     req: EgressGuardRequest,
+    auth: Dict[str, Any] = Depends(require_auth),
     db: Session = Depends(get_db)
 ):
     """
     POST-LLM GATEWAY (Placed AFTER LLM generates tool call or response):
-    1. TCEAV Guard: Ensures tool call arguments did not originate from untrusted RAG/email context.
-    2. Stateful Cumulative Ledger: Enforces per-call and multi-turn session spending caps.
-    3. Output Guard: Strips Markdown image auto-exfiltration and secret disclosures.
+    1. Role Enforcement: Requires Egress key ('cgx_egr_...') or Gateway key ('cgx_live_...'). Ingress keys are forbidden (HTTP 403).
+    2. Language Policy Check: Validates output and tool argument strings against allowed_languages and reject_foreign_scripts.
+    3. Runtime Auto-Switching: Pure RAG / text summarization bypasses TCEAV & Ledger (<0.1ms SLA) while enforcing Stage 5 Output Privacy.
+    4. Full Tri-Guard: Complete 5-stage verification for stateful tool calls.
     """
     start_time = time.perf_counter()
 
-    if req.api_key and not verify_api_key(req.api_key, db):
-        raise HTTPException(status_code=401, detail="Invalid or revoked ContractGuard API Key.")
+    # Step 0a: Key Role Enforcement
+    cred = _resolve_effective_key(auth, req.api_key, db)
+    key_type = cred.get("key_type", "gateway")
+    if key_type not in ("egress", "gateway"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"Unauthorized key role '{key_type}': Post-LLM Egress endpoint requires an Egress key "
+                f"(prefix 'cgx_egr_...') or Gateway key ('cgx_live_...'). Ingress keys ('cgx_ing_...') are forbidden at Egress."
+            )
+        )
 
     audit_trail = [
         {"timestamp": time.strftime("%H:%M:%S"), "stage": "Egress Ingress", "status": "RECEIVED", "session_id": req.session_id}
     ]
 
+    # Resolve bound project/policy constraints if associated with key or request
+    eff_project_id = req.project_id or cred.get("project_id")
+    bound_policy = _resolve_project_policy(db, eff_project_id, req.policy_id)
+    global_env = bound_policy.get("global_envelope", {}) if bound_policy else {}
+
+    policy_session_budget = global_env.get("max_cumulative_budget", 1000.0)
+    policy_per_call = global_env.get("financial_ceiling", 500.0)
+    if bound_policy and req.tool_name:
+        tool_spec = (bound_policy.get("tools") or {}).get(req.tool_name) or {}
+        params_spec = tool_spec.get("parameters") or {}
+        for p_spec in params_spec.values():
+            if isinstance(p_spec, dict) and p_spec.get("max_value") is not None:
+                try:
+                    policy_per_call = float(p_spec["max_value"])
+                    break
+                except (ValueError, TypeError):
+                    pass
+
+    # Explicit zero budget handling (parent orchestrator directive)
+    max_session_budget = req.session_budget if req.session_budget is not None else float(policy_session_budget)
+    max_per_call = req.per_call_ceiling if req.per_call_ceiling is not None else float(policy_per_call)
     session_spent = stateful_ledger.get_session_spent(req.session_id)
-    remaining_budget = max(0.0, (req.session_budget or 1000.0) - session_spent)
+    remaining_budget = max(0.0, max_session_budget - session_spent)
 
-    # --- SUB-STAGE A: TOOL INVOCATION CHECK (TCEAV & LEDGER) ---
-    if req.tool_name and req.tool_arguments is not None:
-        args = req.tool_arguments
-        tool = req.tool_name.lower()
+    # Step 0b: Egress Language Policy Check
+    lang_constraints = req.language_constraints
+    if not lang_constraints and bound_policy:
+        lang_constraints = global_env.get("language_constraints")
 
-        # Check Hard-Banned tools
-        if any(banned in tool for banned in ["shell", "terminal", "bash", "exec", "eval", "delete_database", "format_disk", "drop_tables"]):
+    detected_output_lang = None
+    if lang_constraints:
+        texts_to_check = []
+        if req.proposed_llm_output:
+            texts_to_check.append(req.proposed_llm_output)
+        if req.tool_arguments:
+            for v in req.tool_arguments.values():
+                if isinstance(v, str):
+                    texts_to_check.append(v)
+
+        allowed_languages = lang_constraints.get("allowed_languages", ["en"])
+        reject_foreign_scripts = lang_constraints.get("reject_foreign_scripts", True)
+
+        for text_item in texts_to_check:
+            item_lang = nvidia_language_detector.detect_language(text_item)
+            detected_output_lang = item_lang.get("language")
+            if reject_foreign_scripts and (item_lang.get("has_foreign_script") or item_lang.get("has_mixed_scripts")):
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "decision": "BLOCK",
+                        "reason": "LANGUAGE_VIOLATION",
+                        "details": {
+                            "error": "FOREIGN_SCRIPT_DETECTED",
+                            "detected_scripts": item_lang.get("detected_scripts", []),
+                            "has_mixed_scripts": item_lang.get("has_mixed_scripts", False),
+                            "homoglyphs_detected": item_lang.get("homoglyphs_detected", []),
+                            "message": "Foreign script detected in egress output or arguments."
+                        }
+                    }
+                )
+            det_l = item_lang.get("language", "en")
+            if allowed_languages and det_l not in allowed_languages:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "decision": "BLOCK",
+                        "reason": "LANGUAGE_VIOLATION",
+                        "details": {
+                            "error": "DISALLOWED_LANGUAGE",
+                            "detected_language": det_l,
+                            "allowed_languages": allowed_languages,
+                            "message": f"Output language '{det_l}' is disallowed."
+                        }
+                    }
+                )
+
+    # Step 1: Runtime Auto-Switching Classification
+    mode, class_reason, bypassed_stages = classify_egress_operation(
+        tool_name=req.tool_name,
+        tool_arguments=req.tool_arguments
+    )
+
+    audit_trail.append({
+        "timestamp": time.strftime("%H:%M:%S"),
+        "stage": "Egress Classifier",
+        "status": "CLASSIFIED",
+        "execution_mode": mode.value,
+        "reason": class_reason,
+        "session_id": req.session_id
+    })
+
+    # =========================================================================
+    # PATHWAY A: STREAMLINED RAG EXECUTION (<0.1ms SLA)
+    # =========================================================================
+    if mode == ExecutionMode.STREAMLINED_RAG:
+        clean_output = req.proposed_llm_output or ""
+        # Bypass Stages 1-4: No TCEAV provenance, no single-call limit, no atomic ledger reservation
+        # Enforce Stage 5: Output Privacy & Exfiltration Guard
+        if clean_output:
+            inspection = output_guard.inspect(clean_output)
+            if not inspection.safe:
+                elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                runtime_telemetry.record_evaluation("egress", mode.value, elapsed_ms, bypassed_stages)
+                audit_trail.append({
+                    "timestamp": time.strftime("%H:%M:%S"),
+                    "stage": "Stage 5: Output Privacy & Exfiltration Guard",
+                    "status": "BLOCKED",
+                    "reason": inspection.violation_detected
+                })
+                return EgressGuardResponse(
+                    decision="BLOCK",
+                    action="REDACTED",
+                    interception_stage="Stage 5: Output Privacy & Exfiltration Guard",
+                    reason=inspection.violation_detected or "Markdown image auto-exfiltration tag detected and stripped.",
+                    sanitized_output=inspection.modified_text,
+                    session_budget_remaining=remaining_budget,
+                    latency_ms=elapsed_ms,
+                    audit_trail=audit_trail,
+                    execution_mode=mode.value,
+                    auto_switched=True,
+                    bypassed_stages=bypassed_stages,
+                    language=detected_output_lang
+                )
+            clean_output = inspection.modified_text
+
+        elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        runtime_telemetry.record_evaluation("egress", mode.value, elapsed_ms, bypassed_stages)
+        return EgressGuardResponse(
+            decision="ALLOW",
+            action="EXECUTE",
+            interception_stage="Streamlined RAG Egress",
+            reason=None,
+            sanitized_output=clean_output,
+            session_budget_remaining=remaining_budget,
+            latency_ms=elapsed_ms,
+            audit_trail=audit_trail,
+            execution_mode=mode.value,
+            auto_switched=True,
+            bypassed_stages=bypassed_stages,
+            language=detected_output_lang
+        )
+
+    # =========================================================================
+    # PATHWAY B: FULL TRI-GUARD EXECUTION (5 DEFENSE STAGES)
+    # =========================================================================
+    args = req.tool_arguments or {}
+    tool = req.tool_name.lower() if req.tool_name else ""
+
+    # Stage 1: Hard Perimeter Invariant Check
+    if any(banned in tool for banned in ["shell", "terminal", "bash", "exec", "eval", "delete_database", "format_disk", "drop_tables"]):
+        elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        runtime_telemetry.record_evaluation("egress", mode.value, elapsed_ms, [])
+        _record_session_event(
+            session_id=req.session_id,
+            stage="POST_LLM_EGRESS",
+            decision="BLOCK",
+            reason_codes=["BANNED_TOOL_BREACH"],
+            latency_ms=elapsed_ms,
+            metadata={"tool_name": req.tool_name, "stage": "Stage 1: Hard Perimeter"}
+        )
+        return EgressGuardResponse(
+            decision="BLOCK",
+            action="DENIED",
+            interception_stage="Stage 1: Hard Perimeter Invariant",
+            reason=f"Tool '{req.tool_name}' is permanently banned by Zero-Trust policy.",
+            sanitized_output=None,
+            session_budget_remaining=remaining_budget,
+            latency_ms=elapsed_ms,
+            audit_trail=audit_trail,
+            execution_mode=mode.value,
+            auto_switched=False,
+            bypassed_stages=[],
+            language=detected_output_lang
+        )
+
+    # Stage 2: TCEAV Parameter Provenance (Indirect Prompt Injection Protection)
+    untrusted_text = " ".join(req.untrusted_context or [])
+    target_account = args.get("target_account") or args.get("recipient") or args.get("to_address") or args.get("recipient_iban")
+
+    if target_account and untrusted_text:
+        target_str = str(target_account).strip().lower()
+        # Allowed if independently authorized in user_intent (Case P2), blocked if only in untrusted_context (Case P1)
+        in_user_intent = target_str in (req.user_intent or "").lower()
+        if target_str in untrusted_text.lower() and not in_user_intent:
             elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            runtime_telemetry.record_evaluation("egress", mode.value, elapsed_ms, [])
+            _record_session_event(
+                session_id=req.session_id,
+                stage="POST_LLM_EGRESS",
+                decision="BLOCK",
+                reason_codes=["TCEAV_INDIRECT_INJECTION_BLOCKED"],
+                latency_ms=elapsed_ms,
+                metadata={"tool_name": req.tool_name, "stage": "Stage 2: TCEAV"}
+            )
             return EgressGuardResponse(
                 decision="BLOCK",
                 action="DENIED",
-                interception_stage="Stage 1: Hard Perimeter Invariant",
-                reason=f"Tool '{req.tool_name}' is permanently banned by Zero-Trust policy.",
+                interception_stage="Stage 2: TCEAV Evidence & Authority Guard",
+                reason=(
+                    f"TCEAV Invariant Violation: Parameter 'target_account' value ('{target_account}') "
+                    f"originated from untrusted context. External data is forbidden as an execution destination."
+                ),
                 sanitized_output=None,
                 session_budget_remaining=remaining_budget,
                 latency_ms=elapsed_ms,
-                audit_trail=audit_trail
+                audit_trail=audit_trail,
+                execution_mode=mode.value,
+                auto_switched=False,
+                bypassed_stages=[],
+                language=detected_output_lang
             )
 
-        # Check TCEAV Parameter Provenance (Indirect Prompt Injection Protection)
-        untrusted_text = " ".join(req.untrusted_context or [])
-        target_account = args.get("target_account") or args.get("recipient") or args.get("to_address") or args.get("recipient_iban")
-
-        if target_account and untrusted_text:
-            target_str = str(target_account).strip().lower()
-            # Allowed if independently authorized in user_intent (Case P2), blocked if only in untrusted_context (Case P1)
-            in_user_intent = target_str in (req.user_intent or "").lower()
-            if target_str in untrusted_text.lower() and not in_user_intent:
+    # Stage 3 & 4: Spending Limits & Stateful Cumulative Effect Ledger
+    financial_param_keys = ("amount", "value", "cost", "sum", "payment", "fund", "spend")
+    amount = next(
+        (v for k, v in args.items() if any(stem in str(k).lower() for stem in financial_param_keys) and v is not None),
+        None
+    )
+    if amount is not None:
+        try:
+            amt_val = float(amount)
+            # Stage 3: Single-call ceiling check (respecting explicit zero ceiling)
+            if amt_val > max_per_call:
                 elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                runtime_telemetry.record_evaluation("egress", mode.value, elapsed_ms, [])
+                _record_session_event(
+                    session_id=req.session_id,
+                    stage="POST_LLM_EGRESS",
+                    decision="BLOCK",
+                    reason_codes=["CEILING_BREACH"],
+                    latency_ms=elapsed_ms,
+                    metadata={"tool_name": req.tool_name, "stage": "Stage 3: Ceiling"}
+                )
                 return EgressGuardResponse(
                     decision="BLOCK",
                     action="DENIED",
-                    interception_stage="Stage 2: TCEAV Evidence & Authority Guard",
-                    reason=(
-                        f"TCEAV Invariant Violation: Parameter 'target_account' value ('{target_account}') "
-                        f"originated from untrusted context. External data is forbidden as an execution destination."
-                    ),
+                    interception_stage="Stage 3: Policy Transaction Ceiling Guard",
+                    reason=f"Transaction amount ${amt_val:.2f} exceeds single-call limit of ${max_per_call:.2f}.",
                     sanitized_output=None,
                     session_budget_remaining=remaining_budget,
                     latency_ms=elapsed_ms,
-                    audit_trail=audit_trail
+                    audit_trail=audit_trail,
+                    execution_mode=mode.value,
+                    auto_switched=False,
+                    bypassed_stages=[],
+                    language=detected_output_lang
                 )
 
-        # Check Financial / Resource Ceilings via Stateful Effect Ledger
-        amount = args.get("amount") or args.get("fund") or args.get("spend")
-        if amount is not None:
-            try:
-                amt_val = float(amount)
-                # Single-call limit check
-                if amt_val > (req.per_call_ceiling or 500.0):
-                    elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
-                    return EgressGuardResponse(
-                        decision="BLOCK",
-                        action="DENIED",
-                        interception_stage="Stage 3: Policy Transaction Ceiling Guard",
-                        reason=f"Transaction amount ${amt_val:.2f} exceeds single-call limit of ${req.per_call_ceiling:.2f}.",
-                        sanitized_output=None,
-                        session_budget_remaining=remaining_budget,
-                        latency_ms=elapsed_ms,
-                        audit_trail=audit_trail
-                    )
-
-                # Cumulative session budget check
-                can_reserve, res_obj, err_msg = stateful_ledger.reserve_atomic(
+            # Stage 4: Cumulative session budget reservation check (respecting explicit zero budget)
+            can_reserve, res_obj, err_msg = stateful_ledger.reserve_atomic(
+                session_id=req.session_id,
+                tool_name=req.tool_name,
+                parameters=args,
+                max_budget=max_session_budget,
+                idempotency_key=req.idempotency_key
+            )
+            if not can_reserve:
+                elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                runtime_telemetry.record_evaluation("egress", mode.value, elapsed_ms, [])
+                _record_session_event(
                     session_id=req.session_id,
-                    tool_name=req.tool_name,
-                    parameters=args,
-                    max_budget=req.session_budget or 1000.0,
-                    idempotency_key=req.idempotency_key
+                    stage="STATEFUL_LEDGER",
+                    decision="BLOCK",
+                    reason_codes=["SALAMI_SLICING_BUDGET_EXHAUSTION"],
+                    latency_ms=elapsed_ms,
+                    metadata={"tool_name": req.tool_name, "stage": "Stage 4: Ledger"}
                 )
-                if not can_reserve:
-                    elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
-                    return EgressGuardResponse(
-                        decision="BLOCK",
-                        action="DENIED",
-                        interception_stage="Stage 4: Stateful Cumulative Effect Ledger",
-                        reason=f"Salami-Slicing Invariant Violation: {err_msg}",
-                        sanitized_output=None,
-                        session_budget_remaining=remaining_budget,
-                        latency_ms=elapsed_ms,
-                        audit_trail=audit_trail
-                    )
+                return EgressGuardResponse(
+                    decision="BLOCK",
+                    action="DENIED",
+                    interception_stage="Stage 4: Stateful Cumulative Effect Ledger",
+                    reason=f"Salami-Slicing Invariant Violation: {err_msg}",
+                    sanitized_output=None,
+                    session_budget_remaining=remaining_budget,
+                    latency_ms=elapsed_ms,
+                    audit_trail=audit_trail,
+                    execution_mode=mode.value,
+                    auto_switched=False,
+                    bypassed_stages=[],
+                    language=detected_output_lang
+                )
 
-                # Update remaining budget after reservation
-                session_spent = stateful_ledger.get_session_spent(req.session_id)
-                remaining_budget = max(0.0, (req.session_budget or 1000.0) - session_spent)
-            except (ValueError, TypeError):
-                pass
+            # Update remaining budget after reservation
+            session_spent = stateful_ledger.get_session_spent(req.session_id)
+            remaining_budget = max(0.0, max_session_budget - session_spent)
+        except (ValueError, TypeError):
+            pass
 
-    # --- SUB-STAGE B: OUTPUT GUARD (EXFILTRATION PROTECTION) ---
+    # Stage 5: Output Privacy & Exfiltration Guard
     clean_output = req.proposed_llm_output
     if clean_output:
         inspection = output_guard.inspect(clean_output)
         if not inspection.safe:
             elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            runtime_telemetry.record_evaluation("egress", mode.value, elapsed_ms, [])
             return EgressGuardResponse(
                 decision="BLOCK",
                 action="REDACTED",
@@ -757,11 +1166,16 @@ def post_llm_egress_guard(
                 sanitized_output=inspection.modified_text,
                 session_budget_remaining=remaining_budget,
                 latency_ms=elapsed_ms,
-                audit_trail=audit_trail
+                audit_trail=audit_trail,
+                execution_mode=mode.value,
+                auto_switched=False,
+                bypassed_stages=[],
+                language=detected_output_lang
             )
         clean_output = inspection.modified_text
 
     elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+    runtime_telemetry.record_evaluation("egress", mode.value, elapsed_ms, [])
     return EgressGuardResponse(
         decision="ALLOW",
         action="EXECUTE",
@@ -770,7 +1184,11 @@ def post_llm_egress_guard(
         sanitized_output=clean_output,
         session_budget_remaining=remaining_budget,
         latency_ms=elapsed_ms,
-        audit_trail=audit_trail
+        audit_trail=audit_trail,
+        execution_mode=mode.value,
+        auto_switched=False,
+        bypassed_stages=[],
+        language=detected_output_lang
     )
 
 
@@ -783,54 +1201,58 @@ def create_developer_api_key(
     req: CreateApiKeyRequest,
     db: Session = Depends(get_db)
 ):
-    """Generates a secure Live Gateway API key for the developer."""
-    raw_secret = f"cgx_live_{uuid.uuid4().hex}"
-    key_hash = hashlib.sha256(raw_secret.encode("utf-8")).hexdigest()
-    key_prefix = raw_secret[:14] + "..."
-    key_id = f"key_{uuid.uuid4().hex[:8]}"
-
+    """Generates a secure API key (ingress, egress, or gateway) for the developer."""
     user_id = req.user_id
     if not user_id:
         first_user = db.query(UserRecord).first()
         user_id = first_user.id if first_user else "usr_default_dev"
 
-    record = ApiKeyRecord(
-        id=key_id,
+    key_res = generate_api_key_record(
+        db=db,
         user_id=user_id,
         key_name=req.key_name,
-        key_prefix=key_prefix,
-        key_hash=key_hash,
-        is_active=True
+        key_type=req.key_type or "gateway",
+        project_id=req.project_id
     )
-    db.add(record)
-    db.commit()
 
     return CreateApiKeyResponse(
-        key_id=key_id,
-        api_key=raw_secret,
-        key_name=req.key_name,
-        created_at=time.strftime("%Y-%m-%d %H:%M:%S")
+        key_id=key_res["key_id"],
+        api_key=key_res["api_key"],
+        raw_key=key_res["raw_key"],
+        key_name=key_res["key_name"],
+        created_at=key_res["created_at"],
+        key_type=key_res["key_type"],
+        project_id=key_res["project_id"]
     )
 
 
 @router.get("/keys/list", response_model=List[ApiKeyInfo])
 def list_developer_api_keys(
     user_id: Optional[str] = None,
+    project_id: Optional[str] = None,
+    key_type: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """Lists developer's active API keys."""
     query = db.query(ApiKeyRecord).filter(ApiKeyRecord.is_active == True)
     if user_id:
         query = query.filter(ApiKeyRecord.user_id == user_id)
+    if project_id:
+        query = query.filter(ApiKeyRecord.project_id == project_id)
+    if key_type:
+        query = query.filter(ApiKeyRecord.key_type == key_type)
     records = query.order_by(ApiKeyRecord.created_at.desc()).all()
 
     return [
         ApiKeyInfo(
             id=r.id,
+            key_id=r.id,
             key_name=r.key_name,
             key_prefix=r.key_prefix,
             created_at=str(r.created_at),
-            is_active=r.is_active
+            is_active=r.is_active,
+            key_type=getattr(r, "key_type", "gateway") or "gateway",
+            project_id=getattr(r, "project_id", None)
         )
         for r in records
     ]
@@ -848,21 +1270,112 @@ def revoke_api_key(key_id: str, db: Session = Depends(get_db)):
 
 
 # =========================================================================
-# 4. VECTOR ATTACK DB INSPECTION ENDPOINTS
+# 4. LANGUAGE DETECTION, VECTOR ATTACK DB & LIVE ALERTS ENDPOINTS
 # =========================================================================
+
+@router.post("/language/detect", response_model=LanguageDetectResponse)
+def detect_text_language(req: LanguageDetectRequest):
+    """Direct language detection using NVIDIA LLM with deterministic Unicode fallback."""
+    start = time.perf_counter()
+    info = nvidia_language_detector.detect_language(req.text, api_key=req.api_key)
+    elapsed = round((time.perf_counter() - start) * 1000, 2)
+    return LanguageDetectResponse(
+        language=info["language"],
+        confidence=info["confidence"],
+        script=info["script"],
+        detected_scripts=info["detected_scripts"],
+        has_foreign_script=info["has_foreign_script"],
+        has_mixed_scripts=info["has_mixed_scripts"],
+        homoglyphs_detected=info["homoglyphs_detected"],
+        latency_ms=elapsed
+    )
+
 
 @router.get("/vector-db/signatures")
 def get_attack_signatures():
     """Lists curated attack signatures in the Vector Attack Database."""
+    families_grouped: Dict[str, List[Dict[str, Any]]] = {}
+    for sig in vector_attack_db.signatures:
+        fam = sig.get("family", "OTHER")
+        families_grouped.setdefault(fam, []).append(sig)
+
     return {
         "total_signatures": len(vector_attack_db.signatures),
-        "families": list(set(s["family"] for s in vector_attack_db.signatures)),
+        "families": list(families_grouped.keys()),
+        "families_grouped": families_grouped,
         "signatures": vector_attack_db.signatures
+    }
+
+
+@router.post("/vector-db/signatures")
+def create_custom_attack_signature(payload: Dict[str, Any], db: Session = Depends(get_db)):
+    """Persists a new custom attack signature into PostgreSQL and rebuilds the in-memory vector index."""
+    pattern = (payload.get("pattern") or payload.get("text") or "").strip()
+    if not pattern:
+        raise HTTPException(status_code=400, detail="Attack signature pattern text is required.")
+    family = (payload.get("family") or "CUSTOM_INJECTION").strip().upper().replace(" ", "_")
+    description = (payload.get("description") or f"Custom {family} signature").strip()
+    sig_id = payload.get("id") or f"custom_{uuid.uuid4().hex[:8]}"
+
+    added = vector_attack_db.add_signature(
+        db_session=db,
+        sig_id=sig_id,
+        pattern=pattern,
+        family=family,
+        description=description,
+        signature_type="vector"
+    )
+    return {
+        "status": "CREATED",
+        "signature": added,
+        "total_signatures": len(vector_attack_db.signatures)
     }
 
 
 @router.post("/vector-db/query")
 def query_vector_attack_db(payload: Dict[str, Any]):
     """Tests a query string against the Vector Attack Database."""
-    text = payload.get("text", "")
-    return vector_attack_db.evaluate_threat(text)
+    text = payload.get("text") or payload.get("prompt") or ""
+    res = vector_attack_db.evaluate_threat(text)
+    top_match = res.get("top_match") or {}
+    return {
+        **res,
+        "matched": bool(res.get("is_threat")),
+        "similarity": float(res.get("risk_score", 0.0)),
+        "matched_family": res.get("threat_family", "NONE"),
+        "matched_signature": top_match.get("text") or top_match.get("description") or ""
+    }
+
+
+@router.get("/alerts/recent")
+def get_recent_security_alerts():
+    """Returns real-time intercepted security events across all active sessions."""
+    live_alerts = []
+    for sess_id, events in _SESSION_EVENTS.items():
+        for evt in events:
+            decision = evt.get("decision", "")
+            if decision in ("BLOCK", "DENY", "REVIEW", "REDACTED"):
+                reasons = evt.get("reason_codes") or ["POLICY_VIOLATION"]
+                threat_type = reasons[0] if reasons else "POLICY_VIOLATION"
+                stage_raw = evt.get("stage", "PRE_LLM_INGRESS")
+                if "EGRESS" in stage_raw or "M3" in stage_raw:
+                    stage = "POST_LLM_EGRESS"
+                elif "LEDGER" in stage_raw or "M4" in stage_raw:
+                    stage = "STATEFUL_LEDGER"
+                else:
+                    stage = "PRE_LLM_INGRESS"
+
+                live_alerts.append({
+                    "id": evt.get("event_id", f"evt_{uuid.uuid4().hex[:6]}"),
+                    "timestamp": "Live Event",
+                    "threatType": threat_type,
+                    "severity": "CRITICAL" if decision in ("BLOCK", "DENY") else "HIGH",
+                    "stage": stage,
+                    "decision": "BLOCKED" if decision in ("BLOCK", "DENY") else "SANITIZED",
+                    "summary": f"Intercepted {threat_type} during {stage_raw} ({evt.get('latency_ms', 0.1)}ms)",
+                    "session_id": sess_id,
+                    "created_ts": evt.get("timestamp", 0.0)
+                })
+
+    live_alerts.sort(key=lambda x: x.get("created_ts", 0.0), reverse=True)
+    return {"alerts": live_alerts[:15]}
