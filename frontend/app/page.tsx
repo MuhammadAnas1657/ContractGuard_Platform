@@ -51,11 +51,22 @@ export default function Home() {
   // 3-Way Enterprise Theme Management (Persisted across sessions)
   const [theme, setTheme] = useState<string>("dark-soc");
 
+  const updateFavicon = (targetTheme: string) => {
+    if (typeof document !== "undefined") {
+      const favIcons = document.querySelectorAll("link[rel*='icon']");
+      const iconUrl = targetTheme === "enterprise-light" ? "/favicon.ico" : "/favicon-white.png";
+      favIcons.forEach((el) => {
+        (el as HTMLLinkElement).href = iconUrl;
+      });
+    }
+  };
+
   useEffect(() => {
     const savedTheme = localStorage.getItem("cgx_theme") || "dark-soc";
     setTheme(savedTheme);
     if (typeof document !== "undefined") {
       document.documentElement.className = `theme-${savedTheme}`;
+      updateFavicon(savedTheme);
     }
   }, []);
 
@@ -64,6 +75,7 @@ export default function Home() {
     localStorage.setItem("cgx_theme", newTheme);
     if (typeof document !== "undefined") {
       document.documentElement.className = `theme-${newTheme}`;
+      updateFavicon(newTheme);
     }
   };
 
@@ -581,9 +593,9 @@ export default function Home() {
               {/* Branding & Header */}
               <div className="text-center space-y-3">
                 <img
-                  src="/logo.png"
+                  src={theme === "enterprise-light" ? "/logo.png" : "/logo-white.png"}
                   alt="ContractGuard-X Logo"
-                  className="h-16 w-16 mx-auto object-contain drop-shadow-md"
+                  className="h-16 w-16 mx-auto object-contain drop-shadow-md transition-all"
                 />
                 <div>
                   <h2 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">

@@ -43,9 +43,9 @@ export default function TopNavBar({
       {/* Brand Logo & Name */}
       <div className="flex items-center gap-3">
         <img
-          src="/logo.png"
+          src={theme === "enterprise-light" ? "/logo.png" : "/logo-white.png"}
           alt="ContractGuard-X Logo"
-          className="h-8 w-8 object-contain drop-shadow-sm"
+          className="h-8 w-8 object-contain drop-shadow-sm transition-all"
         />
         <div className="flex flex-col">
           <div className="flex items-center gap-1.5">
