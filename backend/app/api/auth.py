@@ -146,7 +146,7 @@ def validate_bearer_token(raw_token: Optional[str], db: Session) -> Optional[Dic
             "user": user,
             "user_id": payload["sub"],
             "payload": payload,
-            "role": payload.get("role", "developer"),
+            "role": user.role if user else payload.get("role", "developer"),
             "key_type": "gateway",
             "project_id": None
         }

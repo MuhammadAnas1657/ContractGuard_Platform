@@ -26,7 +26,9 @@ import {
   X,
   Mail,
   Eye,
-  EyeOff
+  EyeOff,
+  ShieldCheck,
+  Cpu
 } from "lucide-react";
 import TopNavBar from "./components/navigation/TopNavBar";
 import DashboardView from "./components/dashboard/DashboardView";
@@ -77,6 +79,26 @@ export default function Home() {
     if (typeof document !== "undefined") {
       document.documentElement.className = `theme-${newTheme}`;
       updateFavicon(newTheme);
+    }
+  };
+
+  const [adminWorkspaceMode, setAdminWorkspaceMode] = useState<"governance" | "developer">("governance");
+
+  const handleSwitchAccount = async (accountType: "admin" | "developer") => {
+    const creds = accountType === "admin"
+      ? { email: "admin@contractguard.ai", password: "Admin@2026!" }
+      : { email: "developer@enterprise.com", password: "ContractGuard2026!" };
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(creds)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Account switch failed");
+      onAuthSuccess(data);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -573,6 +595,9 @@ export default function Home() {
         handleLogout={handleLogout}
         theme={theme}
         setTheme={handleThemeChange}
+        onSwitchAccount={handleSwitchAccount}
+        adminWorkspaceMode={adminWorkspaceMode}
+        setAdminWorkspaceMode={setAdminWorkspaceMode}
       />
 
       {/* Main Container */}
@@ -760,23 +785,70 @@ export default function Home() {
 
             {/* VIEW 1: OPERATIONAL TELEMETRY & DEFENSE DASHBOARD */}
             {activeTab === "dashboard" && (
-              user?.role === "admin" ? (
-                <AdminGovernanceView
-                  token={typeof window !== "undefined" ? localStorage.getItem("cgx_auth_token") : null}
-                  currentUser={user}
-                  setActiveTab={setActiveTab}
-                />
+              user?.role === "admin" && adminWorkspaceMode === "governance" ? (
+                <div className="space-y-4">
+                  {/* Mode switcher bar for Admin */}
+                  <div className="flex items-center justify-between pb-1">
+                    <div className="flex items-center gap-1.5 p-1 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] text-xs font-semibold">
+                      <div
+                        role="button"
+                        onClick={() => setAdminWorkspaceMode("governance")}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-card)] text-purple-400 font-bold shadow-sm border border-[var(--border-color)] cursor-pointer"
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5 text-purple-400" />
+                        <span>Admin Governance Console</span>
+                      </div>
+                      <div
+                        role="button"
+                        onClick={() => setAdminWorkspaceMode("developer")}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer transition-colors"
+                      >
+                        <Cpu className="h-3.5 w-3.5 text-blue-400" />
+                        <span>Developer Simulation Studio</span>
+                      </div>
+                    </div>
+                  </div>
+                  <AdminGovernanceView
+                    token={typeof window !== "undefined" ? localStorage.getItem("cgx_auth_token") : null}
+                    currentUser={user}
+                    setActiveTab={setActiveTab}
+                  />
+                </div>
               ) : (
-                <DashboardView
-                  metricsData={metricsData}
-                  simulationResult={simulationResult}
-                  runningSimulation={isSimulating}
-                  runSimulation={runSimulation}
-                  runSimulationDefault={runSimulationDefault}
-                  selectedScenario={selectedScenario}
-                  setSelectedScenario={setSelectedScenario}
-                  setActiveTab={setActiveTab}
-                />
+                <div className="space-y-4">
+                  {user?.role === "admin" && (
+                    <div className="flex items-center justify-between pb-1">
+                      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] text-xs font-semibold">
+                        <div
+                          role="button"
+                          onClick={() => setAdminWorkspaceMode("governance")}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer transition-colors"
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5 text-purple-400" />
+                          <span>Admin Governance Console</span>
+                        </div>
+                        <div
+                          role="button"
+                          onClick={() => setAdminWorkspaceMode("developer")}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-card)] text-blue-400 font-bold shadow-sm border border-[var(--border-color)] cursor-pointer"
+                        >
+                          <Cpu className="h-3.5 w-3.5 text-blue-400" />
+                          <span>Developer Simulation Studio</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <DashboardView
+                    metricsData={metricsData}
+                    simulationResult={simulationResult}
+                    runningSimulation={isSimulating}
+                    runSimulation={runSimulation}
+                    runSimulationDefault={runSimulationDefault}
+                    selectedScenario={selectedScenario}
+                    setSelectedScenario={setSelectedScenario}
+                    setActiveTab={setActiveTab}
+                  />
+                </div>
               )
             )}
 

@@ -1,7 +1,20 @@
 "use client";
 
-import React from "react";
-import { Shield, FolderGit2, Settings, LogOut, Cpu, Moon, Sun, Zap } from "lucide-react";
+import React, { useState } from "react";
+import {
+  Shield,
+  FolderGit2,
+  Settings,
+  LogOut,
+  Cpu,
+  Moon,
+  Sun,
+  Zap,
+  ChevronDown,
+  ShieldCheck,
+  RefreshCw,
+  Sliders
+} from "lucide-react";
 
 interface TopNavBarProps {
   activeTab: "dashboard" | "projects" | "settings";
@@ -20,6 +33,9 @@ interface TopNavBarProps {
   handleLogout: () => void;
   theme?: string;
   setTheme?: (theme: string) => void;
+  onSwitchAccount?: (accountType: "admin" | "developer") => void;
+  adminWorkspaceMode?: "governance" | "developer";
+  setAdminWorkspaceMode?: (mode: "governance" | "developer") => void;
 }
 
 export default function TopNavBar({
@@ -31,7 +47,12 @@ export default function TopNavBar({
   handleLogout,
   theme = "dark-soc",
   setTheme,
+  onSwitchAccount,
+  adminWorkspaceMode = "governance",
+  setAdminWorkspaceMode,
 }: TopNavBarProps) {
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+
   const handleSelectTheme = (newTheme: string) => {
     if (setTheme) {
       setTheme(newTheme);
@@ -176,15 +197,150 @@ export default function TopNavBar({
           />
         </button>
 
-        {/* User Info & Logout */}
+        {/* User Info & Interactive Workspace / Role Menu */}
         {user && (
-          <div className="flex items-center gap-2">
-            <div className="hidden sm:flex flex-col text-right">
-              <span className="text-xs font-bold text-[var(--text-primary)]">
-                {user.full_name || user.email}
-              </span>
-              <span className="text-[10px] text-[var(--text-secondary)] capitalize">{user.role}</span>
+          <div className="relative flex items-center gap-2">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setUserMenuOpen(!userMenuOpen)}
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-[var(--surface-card)] hover:bg-[var(--surface-card-hover)] border border-[var(--border-color)] cursor-pointer transition-all shadow-sm select-none"
+              title="Click to open Account & Workspace Menu"
+            >
+              <div className="h-6 w-6 rounded-full bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] border border-[var(--accent-primary)]/20 flex items-center justify-center font-bold text-[10px] uppercase shrink-0">
+                {user.full_name ? user.full_name.charAt(0) : user.email.charAt(0)}
+              </div>
+              <div className="hidden sm:flex flex-col text-left">
+                <span className="text-xs font-bold text-[var(--text-primary)] leading-tight">
+                  {user.full_name || user.email}
+                </span>
+                <div className="flex items-center gap-1">
+                  <span className={`text-[10px] font-bold uppercase ${user.role === "admin" ? "text-purple-400" : "text-blue-400"}`}>
+                    {user.role}
+                  </span>
+                  <span className="text-[10px] text-[var(--text-muted)]">• {user.email}</span>
+                </div>
+              </div>
+              <ChevronDown className={`h-3 w-3 text-[var(--text-secondary)] transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
             </div>
+
+            {/* User Dropdown Menu */}
+            {userMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-72 rounded-2xl bg-[var(--surface-card)] border border-[var(--border-color)] shadow-2xl p-3 z-50 animate-fadeIn space-y-2 text-xs">
+                <div className="p-2.5 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] space-y-1">
+                  <div className="font-bold text-[var(--text-primary)] flex items-center justify-between">
+                    <span>{user.full_name}</span>
+                    <span className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full ${user.role === "admin" ? "bg-purple-500/10 text-purple-400 border border-purple-500/20" : "bg-blue-500/10 text-blue-400 border border-blue-500/20"}`}>
+                      {user.role}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-[var(--text-secondary)] font-mono">{user.email}</div>
+                </div>
+
+                {/* Workspace Switcher / Admin Access */}
+                <div className="space-y-1 pt-1">
+                  <div className="text-[10px] uppercase font-bold text-[var(--text-muted)] px-1">
+                    Workspace & Role Control
+                  </div>
+
+                  {user.role === "admin" ? (
+                    <>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          if (setAdminWorkspaceMode) setAdminWorkspaceMode("governance");
+                          setActiveTab("dashboard");
+                          setUserMenuOpen(false);
+                        }}
+                        className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                          adminWorkspaceMode === "governance"
+                            ? "bg-purple-500/10 border border-purple-500/30 text-purple-300"
+                            : "hover:bg-[var(--surface-card-hover)] text-[var(--text-primary)]"
+                        }`}
+                      >
+                        <ShieldCheck className="h-4 w-4 text-purple-400" />
+                        <div>
+                          <div className="font-bold">Admin Governance Console</div>
+                          <div className="text-[10px] text-[var(--text-secondary)]">Structuring KPIs, users & project audits</div>
+                        </div>
+                      </div>
+
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          if (setAdminWorkspaceMode) setAdminWorkspaceMode("developer");
+                          setActiveTab("dashboard");
+                          setUserMenuOpen(false);
+                        }}
+                        className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                          adminWorkspaceMode === "developer"
+                            ? "bg-blue-500/10 border border-blue-500/30 text-blue-300"
+                            : "hover:bg-[var(--surface-card-hover)] text-[var(--text-primary)]"
+                        }`}
+                      >
+                        <Cpu className="h-4 w-4 text-blue-400" />
+                        <div>
+                          <div className="font-bold">Developer Simulation Studio</div>
+                          <div className="text-[10px] text-[var(--text-secondary)]">Telemetry & live attack audit bench</div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        if (onSwitchAccount) onSwitchAccount("admin");
+                        setUserMenuOpen(false);
+                      }}
+                      className="flex items-center gap-2 p-2 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 cursor-pointer text-purple-300 transition-colors"
+                    >
+                      <ShieldCheck className="h-4 w-4 text-purple-400" />
+                      <div>
+                        <div className="font-bold">Switch to Administrator</div>
+                        <div className="text-[10px] text-purple-200">Unlock governance console & policy audits</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 1-Click Quick Account Switcher */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      if (onSwitchAccount) {
+                        onSwitchAccount(user.email.includes("admin") ? "developer" : "admin");
+                      }
+                      setUserMenuOpen(false);
+                    }}
+                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-[var(--surface-card-hover)] cursor-pointer text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 text-cyan-400" />
+                    <span>
+                      {user.email.includes("admin") ? "Switch to developer@enterprise.com" : "Switch to admin@contractguard.ai"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border-t border-[var(--border-color)] pt-1">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      handleLogout();
+                    }}
+                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-rose-500/10 text-rose-400 cursor-pointer transition-colors font-semibold"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>Sign Out</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <button
               onClick={handleLogout}
               title="Sign Out"
