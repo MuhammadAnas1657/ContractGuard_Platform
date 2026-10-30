@@ -124,7 +124,7 @@ export default function LiveAttackAuditBench({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--border-color)]">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+          <div className="p-2.5 rounded-xl bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] border border-[var(--accent-primary)]/20">
             <Cpu className="h-5 w-5" />
           </div>
           <div>
@@ -174,7 +174,7 @@ export default function LiveAttackAuditBench({
             >
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent-primary)]">
                     {scenario.category}
                   </span>
                   {isSelected && (
@@ -232,7 +232,7 @@ export default function LiveAttackAuditBench({
       <div className="p-3.5 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] font-mono text-xs">
         <div className="flex items-center justify-between pb-2 mb-2 border-b border-[var(--border-color)] text-[11px] text-[var(--text-secondary)]">
           <span className="flex items-center gap-1.5">
-            <Terminal className="h-3.5 w-3.5 text-blue-400" />
+            <Terminal className="h-3.5 w-3.5 text-[var(--accent-cyan)]" />
             Adversarial Test Input Payload
           </span>
           <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-secondary)]">

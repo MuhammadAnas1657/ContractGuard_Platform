@@ -5,16 +5,17 @@
 @tailwind utilities;
 
 /* ========================================================================== */
-/* THREE ENTERPRISE COLOR THEMES (ChatGPT Spec Alignment)                     */
-/* Theme A: Dark SOC Command Center (Default)                                 */
-/* Theme B: Premium Enterprise Light                                          */
-/* Theme C: AI Cyber Intelligence                                             */
+/* THREE DISTINCT ENTERPRISE THEMES                                           */
+/* Theme A: Dark SOC Command Center (Deep Navy / Cobalt Blue)                 */
+/* Theme B: Premium Enterprise Light (Off-White / Corporate Slate)            */
+/* Theme C: AI Cyber Intelligence (Obsidian Void / Neon Matrix / Ultraviolet) */
 /* ========================================================================== */
 
+/* THEME A: DARK SOC COMMAND CENTER */
 :root,
 .theme-dark-soc {
   --bg-base: #0B1220;
-  --surface-header: rgba(17, 28, 46, 0.85);
+  --surface-header: rgba(17, 28, 46, 0.88);
   --surface-card: #111C2E;
   --surface-card-hover: #17243A;
   --surface-inset: #0A0F1D;
@@ -25,61 +26,99 @@
   --text-secondary: #91A3B8;
   --text-muted: #64748B;
   --accent-primary: #3B82F6;
+  --accent-secondary: #0EA5E9;
   --accent-cyan: #22D3EE;
   --accent-emerald: #10B981;
   --accent-rose: #F43F5E;
   --accent-amber: #F59E0B;
-  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
-  --hover-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --hover-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
 }
 
+.theme-dark-soc body,
+body.theme-dark-soc,
+.theme-dark-soc {
+  background-color: #0B1220;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(34, 211, 238, 0.06) 0px, transparent 50%);
+  background-attachment: fixed;
+}
+
+/* THEME B: PREMIUM ENTERPRISE LIGHT */
 .theme-enterprise-light {
   --bg-base: #F8FAFC;
-  --surface-header: rgba(255, 255, 255, 0.88);
+  --surface-header: rgba(255, 255, 255, 0.92);
   --surface-card: #FFFFFF;
   --surface-card-hover: #F1F5F9;
-  --surface-inset: #F1F5F9;
+  --surface-inset: #F8FAFC;
   --surface-subtle: #E2E8F0;
   --border-color: #E2E8F0;
   --border-subtle: #CBD5E1;
   --text-primary: #0F172A;
   --text-secondary: #475569;
-  --text-muted: #64748B;
+  --text-muted: #94A3B8;
   --accent-primary: #2563EB;
+  --accent-secondary: #0284C7;
   --accent-cyan: #0284C7;
   --accent-emerald: #059669;
   --accent-rose: #E11D48;
   --accent-amber: #D97706;
-  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(15, 23, 42, 0.04);
-  --hover-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 14px rgba(15, 23, 42, 0.04);
+  --hover-shadow: 0 4px 18px rgba(15, 23, 42, 0.08);
 }
 
+.theme-enterprise-light body,
+body.theme-enterprise-light,
+.theme-enterprise-light {
+  background-color: #F8FAFC;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.04) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.03) 0px, transparent 50%);
+  background-attachment: fixed;
+}
+
+/* THEME C: AI CYBER INTELLIGENCE (Striking Futuristic Void & Neon Matrix) */
 .theme-ai-cyber {
-  --bg-base: #0A0D14;
-  --surface-header: rgba(18, 22, 32, 0.85);
-  --surface-card: #121620;
-  --surface-card-hover: #1A202E;
-  --surface-inset: #090C12;
-  --surface-subtle: #181E2C;
-  --border-color: #1E2538;
-  --border-subtle: #151B2A;
-  --text-primary: #F1F5F9;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
-  --accent-primary: #8B5CF6;
-  --accent-cyan: #06B6D4;
+  --bg-base: #030408;
+  --surface-header: rgba(14, 10, 28, 0.94);
+  --surface-card: #0B0818;
+  --surface-card-hover: #150F2C;
+  --surface-inset: #05030A;
+  --surface-subtle: #191033;
+  --border-color: #4C2889;
+  --border-subtle: #2A174E;
+  --text-primary: #F5F3FF;
+  --text-secondary: #C4B5FD;
+  --text-muted: #8B5CF6;
+  --accent-primary: #A855F7;
+  --accent-secondary: #00F5FF;
+  --accent-cyan: #00F5FF;
   --accent-emerald: #10B981;
-  --accent-rose: #F43F5E;
-  --accent-amber: #F59E0B;
-  --card-shadow: 0 4px 24px rgba(139, 92, 246, 0.08);
-  --hover-shadow: 0 8px 32px rgba(139, 92, 246, 0.16);
+  --accent-rose: #FF0055;
+  --accent-amber: #FFB703;
+  --card-shadow: 0 4px 25px rgba(0, 0, 0, 0.8), 0 0 16px rgba(168, 85, 247, 0.16);
+  --hover-shadow: 0 8px 35px rgba(0, 0, 0, 0.9), 0 0 25px rgba(168, 85, 247, 0.32);
+}
+
+.theme-ai-cyber body,
+body.theme-ai-cyber,
+.theme-ai-cyber {
+  background-color: #030408;
+  background-image: 
+    linear-gradient(rgba(168, 85, 247, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(168, 85, 247, 0.08) 1px, transparent 1px),
+    radial-gradient(ellipse at 50% 0%, rgba(168, 85, 247, 0.22) 0%, transparent 60%),
+    radial-gradient(ellipse at 95% 95%, rgba(0, 245, 255, 0.12) 0%, transparent 50%);
+  background-size: 32px 32px, 32px 32px, 100% 100%, 100% 100%;
+  background-attachment: fixed;
 }
 
 @layer base {
   body {
     background-color: var(--bg-base);
     color: var(--text-primary);
-    @apply antialiased font-sans selection:bg-blue-600 selection:text-white min-h-screen transition-colors duration-200;
+    @apply antialiased font-sans selection:bg-purple-600 selection:text-white min-h-screen transition-all duration-200;
   }
 }
 
@@ -96,7 +135,7 @@
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+  background: var(--accent-primary);
 }
 
 /* ========================================================================== */
@@ -145,17 +184,46 @@
   color: #FFFFFF;
   border-radius: 10px;
   font-weight: 600;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.3);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .theme-btn-primary:hover,
 .neu-btn-primary:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.15);
   transform: translateY(-1px);
 }
 .theme-btn-primary:active,
 .neu-btn-primary:active {
   transform: translateY(0);
+}
+
+/* AI Cyber Overrides for Primary Elements */
+.theme-ai-cyber .theme-card,
+.theme-ai-cyber .neu-card {
+  background: linear-gradient(180deg, rgba(16, 11, 34, 0.94) 0%, rgba(9, 6, 20, 0.98) 100%);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.8), 0 0 16px rgba(168, 85, 247, 0.16), inset 0 0 15px rgba(0, 245, 255, 0.02);
+}
+
+.theme-ai-cyber .theme-card:hover,
+.theme-ai-cyber .neu-card:hover {
+  border-color: #00F5FF;
+  box-shadow: 0 8px 35px rgba(0, 0, 0, 0.9), 0 0 25px rgba(0, 245, 255, 0.32), inset 0 0 20px rgba(168, 85, 247, 0.12);
+}
+
+.theme-ai-cyber .theme-btn-primary,
+.theme-ai-cyber .neu-btn-primary {
+  background: linear-gradient(135deg, #A855F7 0%, #06B6D4 100%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.5), 0 0 10px rgba(0, 245, 255, 0.35);
+  color: #FFFFFF;
+}
+
+.theme-ai-cyber .neu-tab-active {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.28) 0%, rgba(13, 8, 28, 0.9) 100%);
+  border: 1px solid #A855F7;
+  color: #00F5FF;
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.45);
 }
 
 .theme-btn-secondary,
@@ -194,7 +262,7 @@
 
 /* Code Syntax Container */
 .neu-code-box {
-  background-color: #0A0F1D;
+  background-color: #06040C;
   border-radius: 12px;
   border: 1px solid var(--border-color);
 }

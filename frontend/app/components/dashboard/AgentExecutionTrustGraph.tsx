@@ -99,7 +99,7 @@ export default function AgentExecutionTrustGraph({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[var(--border-color)]">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+          <div className="p-2 rounded-xl bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] border border-[var(--accent-primary)]/20">
             <Activity className="h-4 w-4" />
           </div>
           <div>
@@ -116,7 +116,7 @@ export default function AgentExecutionTrustGraph({
           <span className="flex items-center gap-1.5 text-[11px] font-mono text-[var(--text-secondary)]">
             <span
               className={`h-2 w-2 rounded-full ${
-                isRunning ? "bg-cyan-400 animate-ping" : "bg-emerald-400"
+                isRunning ? "bg-[var(--accent-cyan)] animate-ping" : "bg-emerald-400"
               }`}
             />
             {isRunning ? "PROCESSING STAGE" : "TRUST CHAIN VERIFIED"}
@@ -138,11 +138,11 @@ export default function AgentExecutionTrustGraph({
             cardStyle = "border-rose-500/80 bg-rose-500/10 shadow-[0_0_15px_rgba(244,63,94,0.3)]";
             badgeStyle = "text-rose-400 bg-rose-500/20";
           } else if (status === "active") {
-            cardStyle = "border-cyan-400/80 bg-cyan-500/10 shadow-[0_0_15px_rgba(34,211,238,0.3)] animate-pulse";
-            badgeStyle = "text-cyan-400 bg-cyan-500/20";
+            cardStyle = "border-[var(--accent-cyan)]/80 bg-[var(--accent-cyan)]/10 shadow-[0_0_15px_rgba(0,245,255,0.3)] animate-pulse";
+            badgeStyle = "text-[var(--accent-cyan)] bg-[var(--accent-cyan)]/20";
           } else if (isSelected) {
             cardStyle = "border-[var(--accent-primary)] bg-[var(--surface-card-hover)] shadow-sm";
-            badgeStyle = "text-blue-400 bg-blue-500/10";
+            badgeStyle = "text-[var(--accent-primary)] bg-[var(--accent-primary)]/10 border-[var(--accent-primary)]/20";
           }
 
           return (
@@ -181,7 +181,7 @@ export default function AgentExecutionTrustGraph({
                       <AlertTriangle className="h-3 w-3" /> Blocked
                     </span>
                   ) : status === "active" ? (
-                    <span className="text-cyan-400 flex items-center gap-1">
+                    <span className="text-[var(--accent-cyan)] flex items-center gap-1">
                       <Activity className="h-3 w-3 animate-spin" /> Active
                     </span>
                   ) : (
@@ -205,7 +205,7 @@ export default function AgentExecutionTrustGraph({
       <div className="p-3.5 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] uppercase font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+            <span className="font-mono text-[10px] uppercase font-bold text-[var(--accent-primary)] bg-[var(--accent-primary)]/10 px-2 py-0.5 rounded border border-[var(--accent-primary)]/20">
               Stage: {selectedNode.stageCode}
             </span>
             <span className="font-bold text-[var(--text-primary)]">
@@ -224,4 +224,3 @@ export default function AgentExecutionTrustGraph({
     </div>
   );
 }
-

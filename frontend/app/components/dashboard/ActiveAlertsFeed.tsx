@@ -150,8 +150,8 @@ export default function ActiveAlertsFeed() {
                 Active Security Alerts Feed
               </h3>
               {/* Radar status indicator */}
-              <span className="flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+              <span className="flex items-center gap-1 text-[10px] font-mono font-bold text-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10 px-2 py-0.5 rounded border border-[var(--accent-cyan)]/20">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-cyan)] animate-ping" />
                 LIVE FEED
               </span>
             </div>
@@ -263,7 +263,7 @@ export default function ActiveAlertsFeed() {
                       <div className="p-2 rounded bg-[var(--surface-card)] border border-[var(--border-color)]">
                         <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)] pb-1 mb-1 border-b border-[var(--border-color)]">
                           <span className="flex items-center gap-1">
-                            <Terminal className="h-3 w-3 text-cyan-400" />
+                            <Terminal className="h-3 w-3 text-[var(--accent-cyan)]" />
                             Forensic Payload Vector
                           </span>
                           <span>Confidence: {alert.confidence || "99.2%"}</span>

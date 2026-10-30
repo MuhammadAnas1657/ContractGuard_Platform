@@ -61,24 +61,24 @@ export default function SettingsView({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[var(--border-color)]">
         <div>
-          <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+          <h2 className="text-xl font-bold text-[var(--text-primary)] tracking-tight flex items-center gap-2">
             Platform Settings & System Configurations
           </h2>
-          <p className="text-xs text-slate-500 font-medium">
+          <p className="text-xs text-[var(--text-secondary)] font-medium">
             Manage Tri-Guard API credentials, Nebius & NVIDIA providers, PostgreSQL database, and attack vector signatures
           </p>
         </div>
 
         {/* Section Navigation Tabs */}
-        <div className="flex items-center gap-1 neu-inset p-1 rounded-xl bg-[#E2E8F0]/70 overflow-x-auto text-xs">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] overflow-x-auto text-xs">
           <button
             onClick={() => setActiveSection("keys")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
               activeSection === "keys"
-                ? "bg-white text-blue-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-[var(--surface-card)] text-[var(--accent-primary)] shadow-sm border border-[var(--border-color)]"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             }`}
           >
             <Key className="h-3.5 w-3.5" />
@@ -88,8 +88,8 @@ export default function SettingsView({
             onClick={() => setActiveSection("credentials")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
               activeSection === "credentials"
-                ? "bg-white text-blue-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-[var(--surface-card)] text-[var(--accent-primary)] shadow-sm border border-[var(--border-color)]"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             }`}
           >
             <Cpu className="h-3.5 w-3.5" />
@@ -99,8 +99,8 @@ export default function SettingsView({
             onClick={() => setActiveSection("database")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
               activeSection === "database"
-                ? "bg-white text-blue-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-[var(--surface-card)] text-[var(--accent-primary)] shadow-sm border border-[var(--border-color)]"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             }`}
           >
             <Database className="h-3.5 w-3.5" />
@@ -110,8 +110,8 @@ export default function SettingsView({
             onClick={() => setActiveSection("attack_db")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
               activeSection === "attack_db"
-                ? "bg-white text-blue-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-[var(--surface-card)] text-[var(--accent-primary)] shadow-sm border border-[var(--border-color)]"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             }`}
           >
             <ShieldAlert className="h-3.5 w-3.5" />
@@ -121,8 +121,8 @@ export default function SettingsView({
             onClick={() => setActiveSection("gateway_bench")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
               activeSection === "gateway_bench"
-                ? "bg-white text-blue-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-[var(--surface-card)] text-[var(--accent-primary)] shadow-sm border border-[var(--border-color)]"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             }`}
           >
             <Server className="h-3.5 w-3.5" />
@@ -132,8 +132,8 @@ export default function SettingsView({
             onClick={() => setActiveSection("sdk")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
               activeSection === "sdk"
-                ? "bg-white text-blue-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-[var(--surface-card)] text-[var(--accent-primary)] shadow-sm border border-[var(--border-color)]"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             }`}
           >
             <Code2 className="h-3.5 w-3.5" />

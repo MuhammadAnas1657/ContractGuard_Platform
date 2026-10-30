@@ -118,7 +118,7 @@ export default function TelemetryCards({ metricsData, runtimeTelemetry }: Teleme
             <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">
               Auto-Switching Ratio
             </span>
-            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            <div className="p-2 rounded-xl bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] border border-[var(--accent-primary)]/20">
               <GitBranch className="h-4 w-4" />
             </div>
           </div>
@@ -127,7 +127,7 @@ export default function TelemetryCards({ metricsData, runtimeTelemetry }: Teleme
               <span className="text-3xl font-black text-[var(--text-primary)] tracking-tight">
                 {autoSwitchRatio}%
               </span>
-              <span className="text-[11px] font-semibold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+              <span className="text-[11px] font-semibold text-[var(--accent-primary)] bg-[var(--accent-primary)]/10 px-2 py-0.5 rounded border border-[var(--accent-primary)]/20">
                 Streamlined
               </span>
             </div>
@@ -136,7 +136,7 @@ export default function TelemetryCards({ metricsData, runtimeTelemetry }: Teleme
               <svg className="w-full h-full overflow-visible" viewBox="0 0 100 24" preserveAspectRatio="none">
                 <polyline
                   fill="none"
-                  stroke="#3B82F6"
+                  stroke="var(--accent-primary)"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -156,7 +156,7 @@ export default function TelemetryCards({ metricsData, runtimeTelemetry }: Teleme
             <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">
               Enforcement Latency
             </span>
-            <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <div className="p-2 rounded-xl bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] border border-[var(--accent-cyan)]/20">
               <Zap className="h-4 w-4" />
             </div>
           </div>
@@ -165,7 +165,7 @@ export default function TelemetryCards({ metricsData, runtimeTelemetry }: Teleme
               <span className="text-3xl font-black text-[var(--text-primary)] tracking-tight">
                 {streamlinedP50}ms
               </span>
-              <div className="flex items-center gap-1 text-[11px] font-semibold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
+              <div className="flex items-center gap-1 text-[11px] font-semibold text-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10 px-2 py-0.5 rounded border border-[var(--accent-cyan)]/20">
                 <TrendingDown className="h-3 w-3" />
                 <span>-{latencyReduction}%</span>
               </div>
@@ -175,7 +175,7 @@ export default function TelemetryCards({ metricsData, runtimeTelemetry }: Teleme
               <svg className="w-full h-full overflow-visible" viewBox="0 0 100 24" preserveAspectRatio="none">
                 <polyline
                   fill="none"
-                  stroke="#22D3EE"
+                  stroke="var(--accent-cyan)"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"

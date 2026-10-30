@@ -39,7 +39,7 @@ export default function TopNavBar({
   };
 
   return (
-    <header className="border-b border-[var(--border-color)] bg-[var(--surface-header)] backdrop-blur-xl sticky top-0 z-40 px-6 py-3 flex items-center justify-between shadow-sm">
+    <header className="border-b border-[var(--border-color)] bg-[var(--surface-header)] backdrop-blur-xl sticky top-0 z-40 px-6 py-3 flex items-center justify-between shadow-sm transition-all duration-200">
       {/* Brand Logo & Name */}
       <div className="flex items-center gap-3">
         <img
@@ -52,7 +52,7 @@ export default function TopNavBar({
             <span className="font-extrabold text-base tracking-tight text-[var(--text-primary)]">
               ContractGuard<span className="text-[var(--accent-primary)]">-X</span>
             </span>
-            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] border border-[var(--accent-primary)]/20">
               Tri-Guard
             </span>
           </div>
@@ -110,11 +110,11 @@ export default function TopNavBar({
             title="Dark SOC Command Center"
             className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded cursor-pointer transition-all ${
               theme === "dark-soc"
-                ? "bg-[var(--surface-card)] text-[var(--accent-primary)] shadow-sm font-bold"
+                ? "bg-blue-900/40 text-blue-400 border border-blue-500/50 shadow-[0_0_10px_rgba(59,130,246,0.3)] font-bold"
                 : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             }`}
           >
-            <Moon className="h-3 w-3" />
+            <Moon className="h-3 w-3 text-blue-400" />
             <span>Dark SOC</span>
           </div>
           <div
@@ -124,11 +124,11 @@ export default function TopNavBar({
             title="Premium Enterprise Light"
             className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded cursor-pointer transition-all ${
               theme === "enterprise-light"
-                ? "bg-[var(--surface-card)] text-[var(--accent-primary)] shadow-sm font-bold"
+                ? "bg-white text-blue-700 shadow-sm border border-slate-300 font-bold"
                 : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             }`}
           >
-            <Sun className="h-3 w-3" />
+            <Sun className="h-3 w-3 text-amber-500" />
             <span>Light</span>
           </div>
           <div
@@ -138,11 +138,11 @@ export default function TopNavBar({
             title="AI Cyber Intelligence"
             className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded cursor-pointer transition-all ${
               theme === "ai-cyber"
-                ? "bg-[var(--surface-card)] text-[var(--accent-primary)] shadow-sm font-bold"
+                ? "bg-purple-900/50 text-cyan-300 border border-purple-500/60 shadow-[0_0_14px_rgba(168,85,247,0.45)] font-bold"
                 : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             }`}
           >
-            <Zap className="h-3 w-3" />
+            <Zap className={`h-3 w-3 ${theme === "ai-cyber" ? "text-cyan-300 animate-pulse" : "text-purple-400"}`} />
             <span>Cyber</span>
           </div>
         </div>
