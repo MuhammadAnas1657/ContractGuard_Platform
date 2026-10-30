@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import TopNavBar from "./components/navigation/TopNavBar";
 import DashboardView from "./components/dashboard/DashboardView";
+import AdminGovernanceView from "./components/dashboard/AdminGovernanceView";
 import ProjectsView from "./components/projects/ProjectsView";
 import SettingsView from "./components/settings/SettingsView";
 import DeploymentGatewayTab from "./components/DeploymentGatewayTab";
@@ -759,16 +760,24 @@ export default function Home() {
 
             {/* VIEW 1: OPERATIONAL TELEMETRY & DEFENSE DASHBOARD */}
             {activeTab === "dashboard" && (
-              <DashboardView
-                metricsData={metricsData}
-                simulationResult={simulationResult}
-                runningSimulation={isSimulating}
-                runSimulation={runSimulation}
-                runSimulationDefault={runSimulationDefault}
-                selectedScenario={selectedScenario}
-                setSelectedScenario={setSelectedScenario}
-                setActiveTab={setActiveTab}
-              />
+              user?.role === "admin" ? (
+                <AdminGovernanceView
+                  token={typeof window !== "undefined" ? localStorage.getItem("cgx_auth_token") : null}
+                  currentUser={user}
+                  setActiveTab={setActiveTab}
+                />
+              ) : (
+                <DashboardView
+                  metricsData={metricsData}
+                  simulationResult={simulationResult}
+                  runningSimulation={isSimulating}
+                  runSimulation={runSimulation}
+                  runSimulationDefault={runSimulationDefault}
+                  selectedScenario={selectedScenario}
+                  setSelectedScenario={setSelectedScenario}
+                  setActiveTab={setActiveTab}
+                />
+              )
             )}
 
             {/* VIEW 2: AGENT PROJECTS & CODE ZIP INGESTION */}
