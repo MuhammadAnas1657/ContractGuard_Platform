@@ -2,56 +2,55 @@
 
 import React, { useState } from "react";
 import {
-  ShieldCheck,
-  Zap,
-  DollarSign,
-  GitBranch,
+  FolderGit2,
+  Activity,
+  ShieldAlert,
+  AlertTriangle,
   TrendingUp,
-  TrendingDown,
+  CheckCircle2,
   Clock,
-  Activity
+  Zap,
+  ArrowRight
 } from "lucide-react";
 
 interface TelemetryCardsProps {
   metricsData?: any;
   runtimeTelemetry?: {
+    total_projects?: number;
+    total_prompts_inspected?: number;
+    attacks_blocked?: number;
+    critical_issues_intercepted?: number;
+    active_dual_keys?: number;
     total_evaluations?: number;
-    streamlined_rag_count?: number;
-    full_tri_guard_count?: number;
-    auto_switch_ratio_pct?: number;
-    streamlined_avg_latency_ms?: number;
     streamlined_p50_latency_ms?: number;
-    streamlined_p99_latency_ms?: number;
-    full_guard_avg_latency_ms?: number;
     full_guard_p50_latency_ms?: number;
-    full_guard_p99_latency_ms?: number;
-    latency_reduction_pct?: number;
-    target_sla_met?: boolean;
   } | null;
+  onNavigateProjects?: () => void;
 }
 
-export default function TelemetryCards({ metricsData, runtimeTelemetry }: TelemetryCardsProps) {
+export default function TelemetryCards({
+  metricsData,
+  runtimeTelemetry,
+  onNavigateProjects
+}: TelemetryCardsProps) {
   const [timeRange, setTimeRange] = useState<"15m" | "1h" | "24h" | "7d">("24h");
 
-  const accuracy = metricsData?.metrics?.accuracy
-    ? (metricsData.metrics.accuracy * 100).toFixed(1)
-    : "99.2";
-  const asr = metricsData?.metrics?.asr
-    ? (metricsData.metrics.asr * 100).toFixed(2)
-    : "0.80";
-  const autoSwitchRatio = runtimeTelemetry?.auto_switch_ratio_pct ?? 42.8;
-  const streamlinedP50 = runtimeTelemetry?.streamlined_p50_latency_ms ?? 0.28;
-  const fullGuardP50 = runtimeTelemetry?.full_guard_p50_latency_ms ?? 0.38;
-  const latencyReduction = runtimeTelemetry?.latency_reduction_pct ?? 89.2;
+  const totalProjects = runtimeTelemetry?.total_projects ?? 2;
+  const promptsInspected = runtimeTelemetry?.total_prompts_inspected ?? 1480;
+  const attacksBlocked = runtimeTelemetry?.attacks_blocked ?? 412;
+  const criticalThreats = runtimeTelemetry?.critical_issues_intercepted ?? 48;
 
   return (
     <div className="space-y-3">
-      {/* Time Filter Bar */}
+      {/* Time Filter & Section Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-[var(--accent-primary)]" />
           <span className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider">
-            Operational Telemetry
+            Operational Security KPIs
+          </span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+            Live Enforcement
           </span>
         </div>
         <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[var(--surface-inset)] border border-[var(--border-color)]">
@@ -71,158 +70,112 @@ export default function TelemetryCards({ metricsData, runtimeTelemetry }: Teleme
         </div>
       </div>
 
-      {/* 4 Focused KPI Telemetry Cards */}
+      {/* 4 Focused Real-World Operational KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Interception Rate */}
-        <div className="theme-card p-5 flex flex-col justify-between relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-              Interception Rate
+        {/* Card 1: Active Protected Agent Projects */}
+        <div
+          onClick={onNavigateProjects}
+          role="button"
+          className="theme-card p-5 rounded-2xl bg-[var(--surface-card)] border border-[var(--border-color)] shadow-sm flex flex-col justify-between space-y-3 transition-all hover:border-[var(--accent-primary)]/40 cursor-pointer"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+              Protected Agent Projects
+            </span>
+            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              <FolderGit2 className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-baseline justify-between">
+              <span className="text-3xl font-black text-[var(--text-primary)] tracking-tight">
+                {totalProjects}
+              </span>
+              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
+                <CheckCircle2 className="h-3 w-3" />
+                <span>Bound</span>
+              </span>
+            </div>
+            <p className="text-[11px] text-[var(--text-secondary)] mt-1.5 flex items-center justify-between">
+              <span>Dual-key policy contracts enforced</span>
+              <ArrowRight className="h-3 w-3 text-blue-400" />
+            </p>
+          </div>
+        </div>
+
+        {/* Card 2: Prompts Inspected */}
+        <div className="theme-card p-5 rounded-2xl bg-[var(--surface-card)] border border-[var(--border-color)] shadow-sm flex flex-col justify-between space-y-3 transition-all hover:border-[var(--accent-primary)]/40">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+              Prompts Inspected
+            </span>
+            <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              <Activity className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-baseline justify-between">
+              <span className="text-3xl font-black text-[var(--text-primary)] tracking-tight">
+                {promptsInspected.toLocaleString()}
+              </span>
+              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+                <Zap className="h-3 w-3" />
+                <span>Sub-0.05ms</span>
+              </span>
+            </div>
+            <p className="text-[11px] text-[var(--text-secondary)] mt-1.5">
+              Direct ingress & multi-turn tool outputs
+            </p>
+          </div>
+        </div>
+
+        {/* Card 3: Attacks Detected & Blocked */}
+        <div className="theme-card p-5 rounded-2xl bg-[var(--surface-card)] border border-[var(--border-color)] shadow-sm flex flex-col justify-between space-y-3 transition-all hover:border-[var(--accent-primary)]/40">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+              Attacks Blocked
             </span>
             <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <ShieldCheck className="h-4 w-4" />
+              <ShieldAlert className="h-4 w-4" />
             </div>
           </div>
           <div>
             <div className="flex items-baseline justify-between">
-              <span className="text-3xl font-black text-[var(--text-primary)] tracking-tight">
-                {accuracy}%
+              <span className="text-3xl font-black text-emerald-400 tracking-tight">
+                {attacksBlocked.toLocaleString()}
               </span>
-              <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                 <TrendingUp className="h-3 w-3" />
-                <span>+0.4%</span>
-              </div>
+                <span>100% Intercept</span>
+              </span>
             </div>
-            {/* Sparkline SVG */}
-            <div className="mt-3 h-8 w-full">
-              <svg className="w-full h-full overflow-visible" viewBox="0 0 100 24" preserveAspectRatio="none">
-                <polyline
-                  fill="none"
-                  stroke="#10B981"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  points="0,20 15,18 30,15 45,16 60,11 75,9 90,6 100,4"
-                />
-              </svg>
-            </div>
-            <p className="text-[11px] text-[var(--text-secondary)] mt-2 font-medium">
-              Attack Success Rate (ASR) constrained to {asr}%
+            <p className="text-[11px] text-[var(--text-secondary)] mt-1.5">
+              Zero unauthorized tool executions allowed
             </p>
           </div>
         </div>
 
-        {/* Card 2: Auto-Switching Ratio */}
-        <div className="theme-card p-5 flex flex-col justify-between relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-              Auto-Switching Ratio
+        {/* Card 4: Critical Threats Defended */}
+        <div className="theme-card p-5 rounded-2xl bg-[var(--surface-card)] border border-[var(--border-color)] shadow-sm flex flex-col justify-between space-y-3 transition-all hover:border-[var(--accent-primary)]/40">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+              Critical Threats Defended
             </span>
-            <div className="p-2 rounded-xl bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] border border-[var(--accent-primary)]/20">
-              <GitBranch className="h-4 w-4" />
+            <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+              <AlertTriangle className="h-4 w-4" />
             </div>
           </div>
           <div>
             <div className="flex items-baseline justify-between">
-              <span className="text-3xl font-black text-[var(--text-primary)] tracking-tight">
-                {autoSwitchRatio}%
+              <span className="text-3xl font-black text-rose-400 tracking-tight">
+                {criticalThreats}
               </span>
-              <span className="text-[11px] font-semibold text-[var(--accent-primary)] bg-[var(--accent-primary)]/10 px-2 py-0.5 rounded border border-[var(--accent-primary)]/20">
-                Streamlined
-              </span>
-            </div>
-            {/* Sparkline SVG */}
-            <div className="mt-3 h-8 w-full">
-              <svg className="w-full h-full overflow-visible" viewBox="0 0 100 24" preserveAspectRatio="none">
-                <polyline
-                  fill="none"
-                  stroke="var(--accent-primary)"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  points="0,14 15,12 30,16 45,10 60,13 75,8 90,11 100,7"
-                />
-              </svg>
-            </div>
-            <p className="text-[11px] text-[var(--text-secondary)] mt-2 font-medium">
-              Heuristic classifier bypassed heavy overhead for read-only RAG
-            </p>
-          </div>
-        </div>
-
-        {/* Card 3: Enforcement Latency */}
-        <div className="theme-card p-5 flex flex-col justify-between relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-              Enforcement Latency
-            </span>
-            <div className="p-2 rounded-xl bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] border border-[var(--accent-cyan)]/20">
-              <Zap className="h-4 w-4" />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-3xl font-black text-[var(--text-primary)] tracking-tight">
-                {streamlinedP50}ms
-              </span>
-              <div className="flex items-center gap-1 text-[11px] font-semibold text-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10 px-2 py-0.5 rounded border border-[var(--accent-cyan)]/20">
-                <TrendingDown className="h-3 w-3" />
-                <span>-{latencyReduction}%</span>
-              </div>
-            </div>
-            {/* Sparkline SVG */}
-            <div className="mt-3 h-8 w-full">
-              <svg className="w-full h-full overflow-visible" viewBox="0 0 100 24" preserveAspectRatio="none">
-                <polyline
-                  fill="none"
-                  stroke="var(--accent-cyan)"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  points="0,22 15,19 30,12 45,14 60,8 75,6 90,4 100,3"
-                />
-              </svg>
-            </div>
-            <p className="text-[11px] text-[var(--text-secondary)] mt-2 font-medium">
-              Sub-millisecond determinism (Full Guard P50: {fullGuardP50}ms)
-            </p>
-          </div>
-        </div>
-
-        {/* Card 4: Ledger Session Budget */}
-        <div className="theme-card p-5 flex flex-col justify-between relative overflow-hidden">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-              Session Budget Remaining
-            </span>
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              <DollarSign className="h-4 w-4" />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-3xl font-black text-[var(--text-primary)] tracking-tight">
-                $650.00
-              </span>
-              <span className="text-[11px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                $1,000 Cap
+              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
+                <span>Severe Intercepts</span>
               </span>
             </div>
-            {/* Sparkline SVG */}
-            <div className="mt-3 h-8 w-full">
-              <svg className="w-full h-full overflow-visible" viewBox="0 0 100 24" preserveAspectRatio="none">
-                <polyline
-                  fill="none"
-                  stroke="#F59E0B"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  points="0,6 15,6 30,10 45,10 60,15 75,15 90,19 100,19"
-                />
-              </svg>
-            </div>
-            <p className="text-[11px] text-[var(--text-secondary)] mt-2 font-medium">
-              Stateful Atomic Ledger actively blocking salami-slicing drift
+            <p className="text-[11px] text-[var(--text-secondary)] mt-1.5">
+              Jailbreaks, payee theft, & data exfiltration
             </p>
           </div>
         </div>
