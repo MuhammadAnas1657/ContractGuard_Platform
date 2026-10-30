@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState } from "react";
 import TelemetryCards from "./TelemetryCards";
-import ActiveAlertsFeed from "./ActiveAlertsFeed";
+import AgentExecutionTrustGraph from "./AgentExecutionTrustGraph";
 import LiveAttackAuditBench from "./LiveAttackAuditBench";
-import { Shield, Sparkles, ArrowRight } from "lucide-react";
+import ActiveAlertsFeed from "./ActiveAlertsFeed";
+import { ArrowRight, Shield } from "lucide-react";
 
 interface DashboardViewProps {
   metricsData: any;
@@ -28,6 +29,8 @@ export default function DashboardView({
   setActiveTab,
 }: DashboardViewProps) {
   const [runtimeTelemetry, setRuntimeTelemetry] = useState<any>(null);
+  const [activeStage, setActiveStage] = useState<string>("PRE_LLM_INGRESS");
+  const [blockedNode, setBlockedNode] = useState<number | null>(4);
 
   useEffect(() => {
     const fetchTelemetry = async () => {
@@ -46,39 +49,48 @@ export default function DashboardView({
     return () => clearInterval(interval);
   }, []);
 
+  const handleStageChange = (stage: string, node: number | null) => {
+    setActiveStage(stage);
+    setBlockedNode(node);
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Top Banner / Welcome header without banned hero patterns */}
+    <div className="space-y-6 animate-fadeIn">
+      {/* Streamlined View Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
         <div>
-          <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+          <h2 className="text-xl font-bold text-[var(--text-primary)] tracking-tight flex items-center gap-2">
             Operational Telemetry & Defense Overview
           </h2>
-          <p className="text-xs text-slate-500 font-medium">
+          <p className="text-xs text-[var(--text-secondary)] font-medium">
             Live auto-switching runtime metrics, multi-stage reference monitor telemetry, and empirical benchmarks
           </p>
         </div>
 
         <button
           onClick={() => setActiveTab("projects")}
-          className="neu-card-sm self-start sm:self-auto flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-blue-700 bg-white hover:bg-blue-50/50 transition-all rounded-xl"
+          className="self-start sm:self-auto flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-[var(--accent-primary)] bg-[var(--surface-card)] hover:bg-[var(--surface-card-hover)] border border-[var(--border-color)] transition-all rounded-lg shadow-sm"
         >
           <span>Manage Agent Projects</span>
           <ArrowRight className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      {/* KPI Telemetry Cards */}
+      {/* SECTION 1: Top-Level KPI Telemetry Cards */}
       <TelemetryCards
         metricsData={metricsData}
         runtimeTelemetry={runtimeTelemetry}
       />
 
-      {/* Active Alerts and Live Audit Bench */}
+      {/* SECTION 2: Agent Execution & Trust Graph */}
+      <AgentExecutionTrustGraph
+        activeStage={activeStage}
+        blockedNode={blockedNode}
+        isRunning={runningSimulation}
+      />
+
+      {/* SECTION 3 & 4: Live Attack Audit Bench & Active Security Alerts Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-1 h-full">
-          <ActiveAlertsFeed />
-        </div>
         <div className="lg:col-span-2">
           <LiveAttackAuditBench
             simulationResult={simulationResult}
@@ -86,7 +98,11 @@ export default function DashboardView({
             runSimulation={runSimulation}
             selectedScenario={selectedScenario}
             setSelectedScenario={setSelectedScenario}
+            onStageChange={handleStageChange}
           />
+        </div>
+        <div className="lg:col-span-1 h-full">
+          <ActiveAlertsFeed />
         </div>
       </div>
     </div>

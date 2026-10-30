@@ -665,8 +665,9 @@ export default function DeploymentGatewayTab({
             </button>
             {dummyProjectRuns.rag && (
               <div className="neu-inset p-2.5 rounded-lg text-[10px] font-mono text-emerald-800 space-y-1 bg-white animate-fadeIn">
-                <span className="text-rose-700 block font-bold">
-                  ✓ {dummyProjectRuns.rag.decision} at {dummyProjectRuns.rag.interception_stage}
+                <span className="text-rose-700 flex items-center font-bold">
+                  <Check className="h-3 w-3 mr-1" />
+                  <span>{dummyProjectRuns.rag.decision} at {dummyProjectRuns.rag.interception_stage}</span>
                 </span>
                 <p className="text-slate-600">{dummyProjectRuns.rag.reason}</p>
               </div>
@@ -694,8 +695,9 @@ export default function DeploymentGatewayTab({
             </button>
             {dummyProjectRuns.devops && (
               <div className="neu-inset p-2.5 rounded-lg text-[10px] font-mono text-slate-800 space-y-1 bg-white animate-fadeIn">
-                <span className="text-rose-700 block font-bold">
-                  ✓ {dummyProjectRuns.devops.decision} at Ingress Perimeter
+                <span className="text-rose-700 flex items-center font-bold">
+                  <Check className="h-3 w-3 mr-1" />
+                  <span>{dummyProjectRuns.devops.decision} at Ingress Perimeter</span>
                 </span>
                 <p className="text-slate-600">
                   Threat family: {dummyProjectRuns.devops.threat_family} (Risk: {dummyProjectRuns.devops.risk_score})
@@ -725,8 +727,9 @@ export default function DeploymentGatewayTab({
             </button>
             {dummyProjectRuns.wealth && (
               <div className="neu-inset p-2.5 rounded-lg text-[10px] font-mono text-indigo-900 space-y-1 bg-white animate-fadeIn">
-                <span className="text-rose-700 block font-bold">
-                  ✓ {dummyProjectRuns.wealth.decision} on Turn 3 ({dummyProjectRuns.wealth.interception_stage})
+                <span className="text-rose-700 flex items-center font-bold">
+                  <Check className="h-3 w-3 mr-1" />
+                  <span>{dummyProjectRuns.wealth.decision} on Turn 3 ({dummyProjectRuns.wealth.interception_stage})</span>
                 </span>
                 <p className="text-emerald-700 font-semibold">{dummyProjectRuns.wealth.turns_summary}</p>
                 <p className="text-slate-600">{dummyProjectRuns.wealth.reason}</p>

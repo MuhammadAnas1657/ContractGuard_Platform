@@ -22,7 +22,8 @@ import {
   FileCode,
   Wrench,
   HelpCircle,
-  FileCheck
+  FileCheck,
+  X
 } from "lucide-react";
 import TopNavBar from "./components/navigation/TopNavBar";
 import DashboardView from "./components/dashboard/DashboardView";
@@ -43,6 +44,25 @@ export default function Home() {
   // Post-Login Primary 3-Tab Navigation
   const [activeTab, setActiveTab] = useState<"dashboard" | "projects" | "settings">("dashboard");
   const PRIMARY_TABS: ("dashboard" | "projects" | "settings")[] = ["dashboard", "projects", "settings"];
+
+  // 3-Way Enterprise Theme Management (Persisted across sessions)
+  const [theme, setTheme] = useState<string>("dark-soc");
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("cgx_theme") || "dark-soc";
+    setTheme(savedTheme);
+    if (typeof document !== "undefined") {
+      document.documentElement.className = `theme-${savedTheme}`;
+    }
+  }, []);
+
+  const handleThemeChange = (newTheme: string) => {
+    setTheme(newTheme);
+    localStorage.setItem("cgx_theme", newTheme);
+    if (typeof document !== "undefined") {
+      document.documentElement.className = `theme-${newTheme}`;
+    }
+  };
 
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
   const [apiKey, setApiKey] = useState("");
@@ -525,7 +545,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#EEF2F6] text-slate-800 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+    <div className={`min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)] flex flex-col font-sans selection:bg-blue-600 selection:text-white transition-colors duration-200 theme-${theme}`}>
       {/* Top Navigation Bar: Restricted strictly to Dashboard, Projects, Settings */}
       <TopNavBar
         activeTab={activeTab}
@@ -534,6 +554,8 @@ export default function Home() {
         setApiKeyModalOpen={setApiKeyModalOpen}
         user={user}
         handleLogout={handleLogout}
+        theme={theme}
+        setTheme={handleThemeChange}
       />
 
       {/* Main Container */}
@@ -813,14 +835,14 @@ export default function Home() {
       {/* ============================================================ */}
       {authModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div className="neu-card p-6 rounded-2xl max-w-sm w-full bg-white relative">
+          <div className="theme-card p-6 rounded-2xl max-w-sm w-full bg-[var(--surface-card)] text-[var(--text-primary)] border border-[var(--border-color)] relative shadow-2xl">
             <button
               onClick={() => setAuthModalOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+              className="absolute top-4 right-4 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             >
-              ✕
+              <X className="h-4 w-4" />
             </button>
-            <h3 className="text-base font-bold text-slate-900 mb-4">
+            <h3 className="text-base font-bold text-[var(--text-primary)] mb-4">
               {authMode === "login" ? "Sign In" : "Register"}
             </h3>
             <form onSubmit={handleAuthSubmit} className="space-y-3">
@@ -865,17 +887,17 @@ export default function Home() {
       {/* Nebius API Key Modal */}
       {apiKeyModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div className="neu-card p-6 rounded-2xl max-w-md w-full bg-white relative">
+          <div className="theme-card p-6 rounded-2xl max-w-md w-full bg-[var(--surface-card)] text-[var(--text-primary)] border border-[var(--border-color)] relative shadow-2xl">
             <button
               onClick={() => setApiKeyModalOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+              className="absolute top-4 right-4 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             >
-              ✕
+              <X className="h-4 w-4" />
             </button>
-            <h3 className="text-base font-bold text-slate-900 mb-2">
+            <h3 className="text-base font-bold text-[var(--text-primary)] mb-2">
               Nebius Token Factory Cloud Connection
             </h3>
-            <p className="text-xs text-slate-500 mb-4">
+            <p className="text-xs text-[var(--text-secondary)] mb-4">
               Connect to live high-throughput Nemotron-70B model inference on Nebius cloud.
             </p>
             <div className="space-y-3">
