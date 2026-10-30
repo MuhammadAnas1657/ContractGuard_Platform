@@ -164,9 +164,9 @@ def get_runtime_telemetry(db: Session = Depends(get_db)):
     total_projects = db.query(ProjectRecord).count()
     active_keys = db.query(ApiKeyRecord).filter(ApiKeyRecord.is_active == True).count()
 
-    total_prompts = summary.get("total_evaluations", 0) + 1480
-    attacks_blocked = summary.get("full_tri_guard_count", 0) + 412
-    critical_defended = 48 + (attacks_blocked // 10)
+    total_prompts = summary.get("total_evaluations", 0)
+    attacks_blocked = summary.get("full_tri_guard_count", 0)
+    critical_defended = max(0, attacks_blocked // 5)
 
     summary.update({
         "total_projects": total_projects,

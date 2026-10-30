@@ -35,10 +35,10 @@ export default function TelemetryCards({
 }: TelemetryCardsProps) {
   const [timeRange, setTimeRange] = useState<"15m" | "1h" | "24h" | "7d">("24h");
 
-  const totalProjects = runtimeTelemetry?.total_projects ?? 2;
-  const promptsInspected = runtimeTelemetry?.total_prompts_inspected ?? 1480;
-  const attacksBlocked = runtimeTelemetry?.attacks_blocked ?? 412;
-  const criticalThreats = runtimeTelemetry?.critical_issues_intercepted ?? 48;
+  const totalProjects = runtimeTelemetry?.total_projects ?? 0;
+  const promptsInspected = runtimeTelemetry?.total_prompts_inspected ?? 0;
+  const attacksBlocked = runtimeTelemetry?.attacks_blocked ?? 0;
+  const criticalThreats = runtimeTelemetry?.critical_issues_intercepted ?? 0;
 
   return (
     <div className="space-y-3">
