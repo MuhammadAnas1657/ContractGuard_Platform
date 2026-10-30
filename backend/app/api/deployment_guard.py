@@ -1032,7 +1032,8 @@ def post_llm_egress_guard(
     tool = req.tool_name.lower() if req.tool_name else ""
 
     # Stage 1: Hard Perimeter Invariant Check
-    if any(banned in tool for banned in ["shell", "terminal", "bash", "exec", "eval", "delete_database", "format_disk", "drop_tables"]):
+    is_hard_banned = any(banned in tool for banned in ["shell", "terminal", "bash", "eval", "delete_database", "format_disk", "drop_tables"]) or tool in ("exec", "run_command", "shell_exec") or tool.endswith("_exec")
+    if is_hard_banned:
         elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
         runtime_telemetry.record_evaluation("egress", mode.value, elapsed_ms, [])
         _record_session_event(

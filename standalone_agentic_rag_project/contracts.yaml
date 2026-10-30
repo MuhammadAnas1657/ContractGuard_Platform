@@ -1,0 +1,64 @@
+spec_version: "2.0.0"
+contract_id: "sec_ctr_agentic_rag_01"
+agent_name: "EnterpriseHybridRagAgent"
+description: "Zero-trust reference contract for Enterprise Fintech & Support Hybrid Agentic RAG System"
+
+global_envelope:
+  financial_ceiling: 500.00
+  max_cumulative_budget: 1000.00
+  default_deny: true
+  language_constraints:
+    allowed_languages: ["en"]
+    reject_foreign_scripts: true
+  untrusted_data_boundary:
+    require_provenance_envelopes: true
+    forbid_external_destination_params: true
+
+tools:
+  query_knowledge_base:
+    action_type: "read"
+    parameters:
+      query:
+        type: "string"
+
+  execute_wire_transfer:
+    action_type: "execute"
+    parameters:
+      recipient:
+        type: "string"
+        forbidden_sources: ["untrusted_context", "rag_doc"]
+      amount:
+        type: "number"
+        max_value: 500.00
+      memo:
+        type: "string"
+
+  issue_customer_refund:
+    action_type: "execute"
+    parameters:
+      order_id:
+        type: "integer"
+      amount:
+        type: "number"
+        max_value: 300.00
+
+  send_email_notification:
+    action_type: "send"
+    parameters:
+      to:
+        type: "string"
+        allowed_pattern: "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
+      subject:
+        type: "string"
+      message:
+        type: "string"
+
+positive_fixtures:
+  - description: "Legitimate knowledge base query on shipping rules"
+    tool: "query_knowledge_base"
+    expected: "ALLOW"
+
+negative_fixtures:
+  - description: "Indirect prompt injection to exfiltrate wire transfer to attacker IBAN"
+    tool: "execute_wire_transfer"
+    expected: "BLOCK"

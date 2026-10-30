@@ -98,13 +98,14 @@ def validate_api_key_str(raw_key: Optional[str], db: Session) -> Optional[Dict[s
         return None
     if key.startswith("Bearer "):
         key = key[7:].strip()
-    if key == "judge_evaluator_key" or key.startswith("demo_") or key.startswith("mock_"):
+    if key == "judge_evaluator_key" or key.startswith("demo_") or key.startswith("mock_") or key.startswith("cgx_demo_"):
+        k_type = "ingress" if "ing" in key else ("egress" if "egr" in key else "gateway")
         return {
             "type": "demo_key",
             "key": key,
             "user_id": "usr_judge_evaluator",
             "role": "judge",
-            "key_type": "gateway",
+            "key_type": k_type,
             "project_id": None
         }
 
@@ -250,17 +251,17 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     )
 
 @router.post("/demo-login", response_model=UserResponse)
-def demo_login(db: Session = Depends(get_db)):
-    """1-Click instant login for Hackathon Judges and Evaluators."""
-    demo_email = "judge@nebius-nvidia-hackathon.ai"
-    user = db.query(UserRecord).filter(UserRecord.email == demo_email).first()
+def demo_login(role: str = "developer", db: Session = Depends(get_db)):
+    """1-Click instant login for Developer or Admin."""
+    target_email = "admin@contractguard.ai" if role.lower() == "admin" else "developer@enterprise.com"
+    user = db.query(UserRecord).filter(UserRecord.email == target_email).first()
     if not user:
         user = UserRecord(
-            id=f"usr_judge_{uuid.uuid4().hex[:8]}",
-            email=demo_email,
+            id=f"usr_{'admin' if role == 'admin' else 'developer'}",
+            email=target_email,
             hashed_password=hash_password("hackathon2026"),
-            full_name="Hackathon Evaluator",
-            role="judge"
+            full_name="Lead Security Architect" if role == "admin" else "Senior AI Systems Engineer",
+            role="admin" if role == "admin" else "developer"
         )
         db.add(user)
         db.commit()
