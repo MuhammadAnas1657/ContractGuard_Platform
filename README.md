@@ -210,6 +210,17 @@ tests/test_contractguard.py::test_m4_output_guard_image_exfiltration PASSED
 
 ---
 
+## 🏆 Hackathon Submission & Hard Audit Reports
+
+- **[Winning Submission Strategy & Devpost Kit](documentation/HACKATHON_WINNING_STRATEGY_AND_AUDIT.md):** Complete hackathon submission metadata, Devpost story writeup, mandatory Nebius & NVIDIA feedback, and 2m45s winning demo video script.
+- **[Production Hard Audit Report](documentation/HARD_AUDIT_REPORT.md):** Comprehensive automated verification report covering 31/31 security, database, agentic execution, and API boundary checks.
+- **Run the Production Hard Audit Suite:**
+  ```bash
+  python scripts/run_hard_audit.py
+  ```
+
+---
+
 ## 📄 License
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
