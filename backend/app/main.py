@@ -5,7 +5,7 @@ from .config import settings
 from .database import init_db, engine
 from .core.seed_data import seed_attack_signatures
 from .core.nebius_client import nebius_service
-from .api import nebius, projects, policies, simulations, metrics, auth, deployment_guard, admin
+from .api import nebius, projects, policies, simulations, metrics, auth, deployment_guard, admin, agentic_ai
 
 # Initialize database tables on startup & seed attack signatures into PostgreSQL / SQLite
 init_db()
@@ -36,6 +36,7 @@ app.include_router(policies.router, prefix="/api")
 app.include_router(simulations.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
+app.include_router(agentic_ai.router, prefix="/api")
 
 
 @app.get("/health")

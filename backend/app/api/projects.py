@@ -271,6 +271,51 @@ def get_project_details(project_id: str, db: Session = Depends(get_db)):
     )
 
 
+@router.post("/{project_id}/generate-keys")
+def generate_project_keys(project_id: str, db: Session = Depends(get_db)):
+    """
+    Methodology Invariant #1: Policy-First API Key Gating.
+    Strictly verifies that the project's security policy is APPROVED before issuing production dual API keys.
+    """
+    proj = db.query(ProjectRecord).filter(ProjectRecord.id == project_id).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    policy_rec = (
+        db.query(PolicyRecord)
+        .filter(PolicyRecord.project_id == project_id, PolicyRecord.is_active == True)
+        .first()
+    )
+    if not policy_rec:
+        raise HTTPException(
+            status_code=400,
+            detail="Security Policy approval required before generating Production API keys (Methodology Invariant #1). Please complete the AI Policy Architect interview and approve the policy."
+        )
+
+    # Deactivate old keys for this project
+    old_keys = db.query(ApiKeyRecord).filter(ApiKeyRecord.project_id == project_id, ApiKeyRecord.is_active == True).all()
+    for k in old_keys:
+        k.is_active = False
+    db.commit()
+
+    # Provision new dual keys
+    dual_keys = provision_dual_keys_for_project(
+        db=db,
+        project_id=proj.id,
+        project_name=proj.name,
+        user_id=proj.user_id
+    )
+    return {
+        "project_id": proj.id,
+        "policy_id": policy_rec.id,
+        "policy_version": policy_rec.version,
+        "status": "KEYS_GENERATED",
+        "dual_keys": dual_keys,
+        "ingress_key": dual_keys["ingress"],
+        "egress_key": dual_keys["egress"]
+    }
+
+
 @router.post("/{project_id}/rotate-keys")
 def rotate_project_dual_keys(project_id: str, db: Session = Depends(get_db)):
     """Revokes existing project API keys and provisions a fresh pair of Ingress and Egress keys with one-time raw_key reveal."""

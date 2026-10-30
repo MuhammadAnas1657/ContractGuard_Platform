@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import {
   ArrowLeft,
+  ArrowRight,
   Key,
   Wrench,
   ShieldCheck,
@@ -113,6 +114,7 @@ export default function ProjectDetail({
   const [auditResult, setAuditResult] = useState<any>(null);
   const [approvingPolicy, setApprovingPolicy] = useState(false);
   const [policySuccessMsg, setPolicySuccessMsg] = useState<string | null>(null);
+  const [generatingKeys, setGeneratingKeys] = useState(false);
 
   // 5-Vector Test Sandbox State
   const [selectedScenario, setSelectedScenario] = useState<TestScenario>(TEST_SCENARIOS[0]);
@@ -211,6 +213,33 @@ export default function ProjectDetail({
       alert("Approval error: " + err.message);
     } finally {
       setApprovingPolicy(false);
+    }
+  };
+
+  const handleGenerateProductionKeys = async () => {
+    setGeneratingKeys(true);
+    try {
+      const authToken = getAuthToken();
+      const headers: Record<string, string> = {};
+      if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
+      const res = await fetch(`/api/project/${projectId}/generate-keys`, {
+        method: "POST",
+        headers
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.detail || "Failed to generate keys");
+      }
+
+      setPolicySuccessMsg("Dual Production API Keys successfully generated and activated!");
+      setTimeout(() => setPolicySuccessMsg(null), 5000);
+      fetchProjectDetails();
+    } catch (err: any) {
+      alert("Key Generation Error: " + err.message);
+    } finally {
+      setGeneratingKeys(false);
     }
   };
 
@@ -415,6 +444,45 @@ export default function ProjectDetail({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             {/* LEFT COLUMN: DUAL API KEYS DISPLAY */}
             <div className="theme-card p-6 rounded-2xl bg-[var(--surface-card)] border border-[var(--border-color)] shadow-sm space-y-4">
+              {!isPolicyApproved ? (
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs space-y-2">
+                  <div className="flex items-center gap-2 font-bold">
+                    <Lock className="h-4 w-4" />
+                    <span>Policy Approval Required (Methodology Invariant #1)</span>
+                  </div>
+                  <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+                    Production Dual API keys remain locked until the agent security policy is approved. Complete the AI Policy Architect interview to review and approve the policy.
+                  </p>
+                  <button
+                    onClick={() => setDetailTab("interview")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent-primary)] text-white font-bold text-xs shadow-sm hover:opacity-90"
+                  >
+                    <span>Launch AI Policy Architect Interview</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <button
+                    onClick={handleGenerateProductionKeys}
+                    disabled={generatingKeys}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold rounded-xl bg-[var(--accent-primary)] hover:opacity-90 text-white transition-all shadow-md disabled:opacity-50"
+                  >
+                    {generatingKeys ? (
+                      <>
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        <span>Generating Production Keys...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Key className="h-3.5 w-3.5" />
+                        <span>Generate & Issue Production Dual Keys (Policy Approved)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
               <DualApiKeyDisplay
                 ingressKey={ingressKey}
                 egressKey={egressKey}
@@ -682,6 +750,42 @@ export default function ProjectDetail({
                 {testResult.sanitized_output && (
                   <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-mono">
                     <strong>Redacted Exfiltration:</strong> {testResult.sanitized_output}
+                  </div>
+                )}
+
+                {/* TriGuard v2 Multi-Tier Research Telemetry */}
+                {testResult.raw_response?.triguard_v2_telemetry && (
+                  <div className="p-3 rounded-lg bg-[var(--surface-card)] border border-[var(--border-color)] space-y-2">
+                    <div className="text-[10px] text-[var(--accent-primary)] font-bold uppercase tracking-wider flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                        <span>TriGuard v2 Dual-Engine Telemetry ({testResult.raw_response.triguard_v2_telemetry.engine})</span>
+                      </span>
+                      <span className="font-mono text-[10px] text-[var(--text-secondary)]">
+                        Gate: <strong>{testResult.raw_response.triguard_v2_telemetry.gate_decision || testResult.raw_response.triguard_v2_telemetry.decision}</strong>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px] font-mono">
+                      <div className="p-2 rounded bg-[var(--surface-inset)] border border-[var(--border-color)]">
+                        <span className="text-[var(--text-secondary)] block text-[9px] uppercase font-bold">Tier 1: Capability Token</span>
+                        <span className="text-cyan-400 font-semibold truncate block">
+                          {testResult.raw_response.triguard_v2_telemetry.tier1_capability_token ? "HMAC Least-Privilege Active" : "Token Valid"}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded bg-[var(--surface-inset)] border border-[var(--border-color)]">
+                        <span className="text-[var(--text-secondary)] block text-[9px] uppercase font-bold">Tier 2: Provenance Tracker</span>
+                        <span className="text-amber-400 font-semibold truncate block">
+                          {testResult.raw_response.triguard_v2_telemetry.tier2_provenance?.is_tainted ? "Tainted External Source" : "Sanitized Context"}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded bg-[var(--surface-inset)] border border-[var(--border-color)]">
+                        <span className="text-[var(--text-secondary)] block text-[9px] uppercase font-bold">Tier 3: Intent Verifier</span>
+                        <span className="text-emerald-400 font-semibold truncate block">
+                          {testResult.raw_response.triguard_v2_telemetry.tier3_verifier?.action_consistent === false ? "Inconsistent Denied" : "Consistent & Scoped"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

@@ -23,6 +23,7 @@ from ..core.runtime_classifier import (
     runtime_telemetry
 )
 from ..core.nvidia_client import nvidia_language_detector
+from ..core.triguard_engine import triguard_research_engine
 from .policies import (
     get_interview_questions,
     validate_policy_yaml,
@@ -101,6 +102,7 @@ class IngressGuardResponse(BaseModel):
     auto_switched: bool = Field(default=False, description="True if classified as STREAMLINED_RAG")
     classification_reason: Optional[str] = None
     language: Optional[str] = None
+    triguard_v2_telemetry: Optional[Dict[str, Any]] = None
 
 
 class EgressGuardRequest(BaseModel):
@@ -133,6 +135,7 @@ class EgressGuardResponse(BaseModel):
     auto_switched: bool = Field(default=False, description="True if executed via streamlined pathway")
     bypassed_stages: List[str] = Field(default_factory=list, description="Defense stages bypassed in streamlined mode")
     language: Optional[str] = None
+    triguard_v2_telemetry: Optional[Dict[str, Any]] = None
 
 
 class CreateSessionRequest(BaseModel):
@@ -779,30 +782,35 @@ def pre_llm_ingress_guard(
         latency_ms=elapsed_ms
     )
 
-    if threat_eval["is_threat"]:
+    # Tier 1 & Tier 2: TriGuard Research Engine evaluation
+    tg_eval = triguard_research_engine.evaluate_ingress(req.user_prompt, session_id=req.session_id)
+
+    if threat_eval["is_threat"] or tg_eval["decision"] == "BLOCK":
+        threat_fam = threat_eval["threat_family"] if threat_eval["is_threat"] else "ADVERSARIAL_INJECTION_PATTERN"
         _record_session_event(
             session_id=req.session_id,
             stage="PRE_LLM_INGRESS",
             decision="BLOCK",
-            reason_codes=[threat_eval["threat_family"]],
+            reason_codes=[threat_fam],
             latency_ms=elapsed_ms,
-            metadata={"execution_mode": mode.value}
+            metadata={"execution_mode": mode.value, "triguard": tg_eval}
         )
         return IngressGuardResponse(
             decision="BLOCK",
             risk_score=float(threat_eval["risk_score"]),
-            threat_family=threat_eval["threat_family"],
+            threat_family=threat_fam,
             sanitized_prompt="",
             latency_ms=elapsed_ms,
             reasons=[
-                f"Perimeter Threat Blocked: Detected {threat_eval['threat_family']} pattern.",
+                f"Perimeter Threat Blocked: Detected {threat_fam} pattern.",
                 f"Vector Signature Match: {threat_eval['top_match']['description'] if threat_eval['top_match'] else 'Semantic cosine distance exceeded.'}"
             ],
             vector_match=threat_eval.get("top_match"),
             execution_mode=mode.value,
             auto_switched=is_streamlined,
             classification_reason=class_reason,
-            language=lang_info.get("language")
+            language=lang_info.get("language"),
+            triguard_v2_telemetry=tg_eval
         )
 
     _record_session_event(
@@ -811,7 +819,7 @@ def pre_llm_ingress_guard(
         decision="ALLOW",
         reason_codes=["CLEAN"],
         latency_ms=elapsed_ms,
-        metadata={"execution_mode": mode.value}
+        metadata={"execution_mode": mode.value, "triguard": tg_eval}
     )
     return IngressGuardResponse(
         decision="ALLOW",
@@ -824,7 +832,8 @@ def pre_llm_ingress_guard(
         execution_mode=mode.value,
         auto_switched=is_streamlined,
         classification_reason=class_reason,
-        language=lang_info.get("language")
+        language=lang_info.get("language"),
+        triguard_v2_telemetry=tg_eval
     )
 
 
@@ -945,6 +954,15 @@ def post_llm_egress_guard(
         tool_arguments=req.tool_arguments
     )
 
+    # TriGuard v2 Tier 1 & Tier 3 Multi-Tier Research Evaluation
+    tg_eval = triguard_research_engine.evaluate_egress(
+        user_intent=req.user_intent or "",
+        untrusted_context=req.untrusted_context,
+        tool_name=req.tool_name,
+        tool_arguments=req.tool_arguments or {},
+        session_id=req.session_id
+    )
+
     audit_trail.append({
         "timestamp": time.strftime("%H:%M:%S"),
         "stage": "Egress Classifier",
@@ -984,7 +1002,8 @@ def post_llm_egress_guard(
                     execution_mode=mode.value,
                     auto_switched=True,
                     bypassed_stages=bypassed_stages,
-                    language=detected_output_lang
+                    language=detected_output_lang,
+                    triguard_v2_telemetry=tg_eval
                 )
             clean_output = inspection.modified_text
 
@@ -1002,7 +1021,8 @@ def post_llm_egress_guard(
             execution_mode=mode.value,
             auto_switched=True,
             bypassed_stages=bypassed_stages,
-            language=detected_output_lang
+            language=detected_output_lang,
+            triguard_v2_telemetry=tg_eval
         )
 
     # =========================================================================
@@ -1035,7 +1055,8 @@ def post_llm_egress_guard(
             execution_mode=mode.value,
             auto_switched=False,
             bypassed_stages=[],
-            language=detected_output_lang
+            language=detected_output_lang,
+            triguard_v2_telemetry=tg_eval
         )
 
     # Stage 2: TCEAV Parameter Provenance (Indirect Prompt Injection Protection)
@@ -1072,7 +1093,8 @@ def post_llm_egress_guard(
                 execution_mode=mode.value,
                 auto_switched=False,
                 bypassed_stages=[],
-                language=detected_output_lang
+                language=detected_output_lang,
+                triguard_v2_telemetry=tg_eval
             )
 
     # Stage 3 & 4: Spending Limits & Stateful Cumulative Effect Ledger
@@ -1108,7 +1130,8 @@ def post_llm_egress_guard(
                     execution_mode=mode.value,
                     auto_switched=False,
                     bypassed_stages=[],
-                    language=detected_output_lang
+                    language=detected_output_lang,
+                    triguard_v2_telemetry=tg_eval
                 )
 
             # Stage 4: Cumulative session budget reservation check (respecting explicit zero budget)
@@ -1142,7 +1165,8 @@ def post_llm_egress_guard(
                     execution_mode=mode.value,
                     auto_switched=False,
                     bypassed_stages=[],
-                    language=detected_output_lang
+                    language=detected_output_lang,
+                    triguard_v2_telemetry=tg_eval
                 )
 
             # Update remaining budget after reservation
@@ -1170,7 +1194,8 @@ def post_llm_egress_guard(
                 execution_mode=mode.value,
                 auto_switched=False,
                 bypassed_stages=[],
-                language=detected_output_lang
+                language=detected_output_lang,
+                triguard_v2_telemetry=tg_eval
             )
         clean_output = inspection.modified_text
 
@@ -1188,7 +1213,8 @@ def post_llm_egress_guard(
         execution_mode=mode.value,
         auto_switched=False,
         bypassed_stages=[],
-        language=detected_output_lang
+        language=detected_output_lang,
+        triguard_v2_telemetry=tg_eval
     )
 
 
