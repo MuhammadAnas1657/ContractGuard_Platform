@@ -86,8 +86,8 @@ export default function Home() {
 
   const handleSwitchAccount = async (accountType: "admin" | "developer") => {
     const creds = accountType === "admin"
-      ? { email: "admin@contractguard.ai", password: "Admin@2026!" }
-      : { email: "developer@enterprise.com", password: "ContractGuard2026!" };
+      ? { email: "admin@contractguard.ai", password: "hackathon2026" }
+      : { email: "developer@enterprise.com", password: "hackathon2026" };
     try {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
@@ -139,7 +139,7 @@ export default function Home() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [authEmail, setAuthEmail] = useState("admin@contractguard.ai");
-  const [authPassword, setAuthPassword] = useState("Admin@2026!");
+  const [authPassword, setAuthPassword] = useState("hackathon2026");
   const [authFullName, setAuthFullName] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
@@ -734,7 +734,7 @@ export default function Home() {
                         tabIndex={0}
                         onClick={() => {
                           setAuthEmail("admin@contractguard.ai");
-                          setAuthPassword("Admin@2026!");
+                          setAuthPassword("hackathon2026");
                         }}
                         className="p-2 rounded-lg bg-[var(--surface-inset)] border border-[var(--border-color)] hover:border-[var(--accent-primary)] cursor-pointer transition-all"
                       >
@@ -746,7 +746,7 @@ export default function Home() {
                         tabIndex={0}
                         onClick={() => {
                           setAuthEmail("developer@enterprise.com");
-                          setAuthPassword("ContractGuard2026!");
+                          setAuthPassword("hackathon2026");
                         }}
                         className="p-2 rounded-lg bg-[var(--surface-inset)] border border-[var(--border-color)] hover:border-[var(--accent-primary)] cursor-pointer transition-all"
                       >
