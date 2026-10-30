@@ -79,6 +79,7 @@ def _record_session_event(
 class IngressGuardRequest(BaseModel):
     session_id: str = Field(default="session_default", description="Unique session ID tracking multi-turn interactions")
     user_prompt: str = Field(..., description="Raw incoming user prompt or task before calling the LLM")
+    user_role: Optional[str] = Field(default="user", description="Caller role for RBAC & audit tracking: e.g. 'admin', 'operator', 'analyst', 'user', 'customer', 'guest'")
     source_type: str = Field(default="authenticated_user", description="Source trust label")
     context_history: Optional[List[Dict[str, Any]]] = Field(default=None, description="Prior conversation turns and sources")
     api_key: Optional[str] = Field(default=None, description="ContractGuard Gateway API Key (cgx_live_...)")
@@ -108,6 +109,7 @@ class IngressGuardResponse(BaseModel):
 class EgressGuardRequest(BaseModel):
     session_id: str = Field(default="session_default", description="Unique session ID tracking multi-turn interactions")
     user_intent: str = Field(..., description="The user's original authorized goal (e.g., 'Refund defect order #4092')")
+    user_role: Optional[str] = Field(default="user", description="Caller role for RBAC authority enforcement: e.g. 'admin', 'operator', 'analyst', 'user', 'customer', 'guest'")
     untrusted_context: Optional[List[str]] = Field(default=None, description="Untrusted external data (emails, RAG docs, web pages)")
     tool_name: Optional[str] = Field(default=None, description="Name of tool proposed by LLM (e.g., 'process_refund')")
     tool_arguments: Optional[Dict[str, Any]] = None
@@ -1030,6 +1032,112 @@ def post_llm_egress_guard(
     # =========================================================================
     args = req.tool_arguments or {}
     tool = req.tool_name.lower() if req.tool_name else ""
+
+    # Stage 0c: Role-Based Access Control (RBAC & Caller Authority Enforcement)
+    user_role = (req.user_role or "user").strip().lower()
+    if bound_policy and req.tool_name:
+        role_permissions = bound_policy.get("role_permissions") or {}
+        tool_spec = (bound_policy.get("tools") or {}).get(req.tool_name) or {}
+        allowed_roles = tool_spec.get("allowed_roles")
+
+        # 1. Check explicit allowed_roles on tool spec
+        if allowed_roles and isinstance(allowed_roles, list):
+            clean_allowed = [str(r).lower() for r in allowed_roles]
+            if user_role != "admin" and user_role not in clean_allowed:
+                elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                runtime_telemetry.record_evaluation("egress", mode.value, elapsed_ms, [])
+                _record_session_event(
+                    session_id=req.session_id,
+                    stage="POST_LLM_EGRESS",
+                    decision="BLOCK",
+                    reason_codes=["ROLE_AUTHORITY_VIOLATION"],
+                    latency_ms=elapsed_ms,
+                    metadata={"tool_name": req.tool_name, "user_role": user_role, "allowed_roles": allowed_roles}
+                )
+                return EgressGuardResponse(
+                    decision="BLOCK",
+                    action="DENIED",
+                    interception_stage="Stage 1: Role Authority & RBAC Guard",
+                    reason=f"Role Authority Violation: Role '{user_role}' is not authorized to invoke tool '{req.tool_name}'. Allowed roles: {allowed_roles}.",
+                    sanitized_output=None,
+                    session_budget_remaining=remaining_budget,
+                    latency_ms=elapsed_ms,
+                    audit_trail=audit_trail,
+                    execution_mode=mode.value,
+                    auto_switched=False,
+                    bypassed_stages=[],
+                    language=detected_output_lang,
+                    triguard_v2_telemetry=tg_eval
+                )
+
+        # 2. Check global role_permissions mapping if defined
+        if role_permissions and isinstance(role_permissions, dict) and user_role != "admin":
+            role_allowed_tools = role_permissions.get(user_role)
+            if role_allowed_tools is not None:
+                tool_permitted = False
+                for pat in role_allowed_tools:
+                    if pat == "*" or pat.lower() == tool:
+                        tool_permitted = True
+                        break
+                    if pat.endswith("*") and tool.startswith(pat[:-1].lower()):
+                        tool_permitted = True
+                        break
+                if not tool_permitted:
+                    elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                    runtime_telemetry.record_evaluation("egress", mode.value, elapsed_ms, [])
+                    _record_session_event(
+                        session_id=req.session_id,
+                        stage="POST_LLM_EGRESS",
+                        decision="BLOCK",
+                        reason_codes=["ROLE_AUTHORITY_VIOLATION"],
+                        latency_ms=elapsed_ms,
+                        metadata={"tool_name": req.tool_name, "user_role": user_role}
+                    )
+                    return EgressGuardResponse(
+                        decision="BLOCK",
+                        action="DENIED",
+                        interception_stage="Stage 1: Role Authority & RBAC Guard",
+                        reason=f"Role Authority Violation: Role '{user_role}' has no permission to invoke tool '{req.tool_name}' under active security contract.",
+                        sanitized_output=None,
+                        session_budget_remaining=remaining_budget,
+                        latency_ms=elapsed_ms,
+                        audit_trail=audit_trail,
+                        execution_mode=mode.value,
+                        auto_switched=False,
+                        bypassed_stages=[],
+                        language=detected_output_lang,
+                        triguard_v2_telemetry=tg_eval
+                    )
+
+    # 3. Fallback unauthenticated/guest role restriction for high-privilege operations
+    if user_role in ("guest", "anonymous", "untrusted_user") and req.tool_name:
+        is_privileged_op = any(stem in tool for stem in ("wire", "transfer", "pay", "delete", "destroy", "update", "modify", "exec"))
+        if is_privileged_op:
+            elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            runtime_telemetry.record_evaluation("egress", mode.value, elapsed_ms, [])
+            _record_session_event(
+                session_id=req.session_id,
+                stage="POST_LLM_EGRESS",
+                decision="BLOCK",
+                reason_codes=["UNTRUSTED_ROLE_BREACH"],
+                latency_ms=elapsed_ms,
+                metadata={"tool_name": req.tool_name, "user_role": user_role}
+            )
+            return EgressGuardResponse(
+                decision="BLOCK",
+                action="DENIED",
+                interception_stage="Stage 1: Role Authority & RBAC Guard",
+                reason=f"Role Authority Violation: Unauthenticated/guest role '{user_role}' cannot execute state-mutating tool '{req.tool_name}'.",
+                sanitized_output=None,
+                session_budget_remaining=remaining_budget,
+                latency_ms=elapsed_ms,
+                audit_trail=audit_trail,
+                execution_mode=mode.value,
+                auto_switched=False,
+                bypassed_stages=[],
+                language=detected_output_lang,
+                triguard_v2_telemetry=tg_eval
+            )
 
     # Stage 1: Hard Perimeter Invariant Check
     is_hard_banned = any(banned in tool for banned in ["shell", "terminal", "bash", "eval", "delete_database", "format_disk", "drop_tables"]) or tool in ("exec", "run_command", "shell_exec") or tool.endswith("_exec")

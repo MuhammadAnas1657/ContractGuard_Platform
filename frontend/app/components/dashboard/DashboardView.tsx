@@ -27,7 +27,8 @@ import {
   AlertTriangle,
   Zap,
   Sliders,
-  Database
+  Database,
+  Download
 } from "lucide-react";
 
 interface DashboardViewProps {
@@ -367,23 +368,184 @@ export default function DashboardView({
 
   const samplePythonSnippet = `import requests
 
-# 1. PRE-LLM INGRESS GUARD (Direct Prompt Injection Defense)
+# 1. PRE-LLM INGRESS GUARD (Direct Prompt Injection & Homoglyph Defense)
 ingress_res = requests.post(
     "http://127.0.0.1:8080/api/v1/guard/ingress",
     headers={"X-API-Key": "${issuedDualKeys?.ingress?.raw_key || 'cgx_ing_live_your_key'}"},
-    json={"user_prompt": user_input}
+    json={
+        "session_id": "sess_live_01",
+        "user_prompt": user_input,
+        "user_role": "customer"  # Caller role for RBAC & audit
+    }
 )
 if ingress_res.json().get("decision") == "BLOCK":
-    raise SecurityException("Prompt Injection Blocked by ContractGuard-X")
+    raise SecurityException(f"Prompt Injection Blocked: {ingress_res.json().get('threat_family')}")
 
-# 2. Run your LLM Agent (Nebius Token Factory / NVIDIA Nemotron) ...
+# 2. Run LLM Agent & Retrieval (NVIDIA Nemotron / Token Factory / etc) ...
 
-# 3. POST-TOOL EGRESS GUARD (Indirect Tool Hijack & Exfiltration Defense)
+# 3. POST-TOOL EGRESS GUARD (TCEAV Alignment, RBAC, Ledger Budget & Privacy)
 egress_res = requests.post(
     "http://127.0.0.1:8080/api/v1/guard/egress",
     headers={"X-API-Key": "${issuedDualKeys?.egress?.raw_key || 'cgx_egr_live_your_key'}"},
     json={
+        "session_id": "sess_live_01",
+        "user_intent": user_input,               # Human task to verify against
+        "user_role": "customer",                 # Verified against policy allowed_roles
+        "untrusted_context": [untrusted_rag_doc], # External text checked for prompt injection
+        "tool_name": tool_call.name,
+        "tool_arguments": tool_call.args,
+        "proposed_llm_output": agent_reply
+    }
+)
+if egress_res.json().get("decision") == "BLOCK":
+    stage = egress_res.json().get("interception_stage")
+    reason = egress_res.json().get("reason")
+    raise SecurityException(f"Action Blocked by ContractGuard-X [{stage}]: {reason}")`;
+
+  const handleDownloadIntegrationGuide = () => {
+    const ingKey = issuedDualKeys?.ingress?.raw_key || "cgx_ing_live_your_key";
+    const egrKey = issuedDualKeys?.egress?.raw_key || "cgx_egr_live_your_key";
+    const projName = newProjectName.trim() || "MyProtectedAgent";
+    const domain = projectDomain.trim() || "Custom";
+
+    const content = `# ContractGuard-X Integration Guide & Security Manual
+**Project:** ${projName}  
+**Domain:** ${domain}  
+**Security Specification:** Version 2.0.0 (TriGuard v2 Unified Architecture)  
+**Ingress Key:** \`${ingKey}\`  
+**Egress Key:** \`${egrKey}\`  
+
+---
+
+## 1. Zero-Trust Dual-Key Topology Overview
+
+ContractGuard-X enforces an immutable two-point cryptographic perimeter around your autonomous LLM agent:
+
+\`\`\`
+[Inbound User Prompt]
+        │
+        ▼
+┌───────────────────────────────────────────────┐
+│  POINT 1: PRE-LLM INGRESS GUARD               │  <── Authorized via Ingress Key:
+│  • Direct DAN & Jailbreak Interception        │      \`${ingKey}\`
+│  • Unicode & Cyrillic Homoglyph Neutralization│
+│  • Language Policy & Token Validation         │
+└───────────────────────────────────────────────┘
+        │  (Clean, Sanitized Prompt)
+        ▼
+┌───────────────────────────────────────────────┐
+│  AUTONOMOUS LLM AGENT (Nemotron / Llama / etc)│
+│  Ingests User Task + External Untrusted RAG   │
+└───────────────────────────────────────────────┘
+        │  (Proposed Tool Call or Reply)
+        ▼
+┌───────────────────────────────────────────────┐
+│  POINT 2: POST-LLM EGRESS GUARD               │  <── Authorized via Egress Key:
+│  • Role-Based Access Control (RBAC) Check     │      \`${egrKey}\`
+│  • TCEAV Task Evidence & Provenance Binding   │
+│  • Parameter Ceiling & Salami Ledger Defense  │
+│  • Markdown Data Exfiltration Stripping       │
+└───────────────────────────────────────────────┘
+        │  (Verified Authorized Action)
+        ▼
+[Safe Execution: Database / API / Payment]
+\`\`\`
+
+---
+
+## 2. Point 1: Pre-LLM Ingress Guard Specification
+**Endpoint:** \`POST http://127.0.0.1:8080/api/v1/guard/ingress\`  
+**Header:** \`X-API-Key: ${ingKey}\`  
+**Header:** \`Content-Type: application/json\`
+
+### JSON Payload Schema
+\`\`\`json
+{
+  "session_id": "sess_user_12345",
+  "user_prompt": "Hello! Please summarize my order #4102 and check refund eligibility.",
+  "user_role": "customer",
+  "source_type": "authenticated_user"
+}
+\`\`\`
+
+### Payload Fields Explained
+- **\`user_prompt\` (REQUIRED)**: The raw input string before tokenization. Scanned for DAN jailbreaks and Cyrillic homoglyphs.
+- **\`session_id\` (REQUIRED)**: Unique identifier tracking the user session across dialogue turns.
+- **\`user_role\` (RECOMMENDED)**: Caller role (\`admin\`, \`operator\`, \`customer\`, \`guest\`). Bound to session audit logs.
+
+---
+
+## 3. Point 2: Post-LLM Egress Guard Specification (TCEAV, RBAC & Ledger)
+**Endpoint:** \`POST http://127.0.0.1:8080/api/v1/guard/egress\`  
+**Header:** \`X-API-Key: ${egrKey}\`  
+**Header:** \`Content-Type: application/json\`
+
+### JSON Payload Schema
+\`\`\`json
+{
+  "session_id": "sess_user_12345",
+  "user_intent": "Customer requested order #4102 refund review for defective item.",
+  "user_role": "operator",
+  "untrusted_context": [
+    "Retrieved customer support ticket #4102: Defective shipment delivered on Oct 28."
+  ],
+  "tool_name": "process_refund",
+  "tool_arguments": {
+    "order_id": "4102",
+    "target_account": "acct_cust_88210",
+    "amount": 75.00
+  },
+  "proposed_llm_output": "I have submitted the refund of $75.00 for order #4102."
+}
+\`\`\`
+
+### Why Each Parameter Is Mandatory:
+1. **\`user_intent\` (MANDATORY FOR TCEAV)**:
+   The original authorized human task. TCEAV compares proposed tool arguments against this intent to ensure the agent has not deviated or been hijacked.
+2. **\`untrusted_context\` (MANDATORY FOR INDIRECT INJECTION DETECTION)**:
+   All external data supplied to the LLM (RAG chunks, customer tickets, email bodies). If a destination or payee originates solely from untrusted context without matching \`user_intent\`, ContractGuard-X blocks it as an indirect prompt injection.
+3. **\`user_role\` (MANDATORY FOR RBAC)**:
+   The role of the caller. Checked against the policy's \`role_permissions\` and \`allowed_roles\`. Unprivileged roles cannot invoke privileged or financial tools.
+4. **\`tool_name\` & \`tool_arguments\`**:
+   The action proposed by the model. Enforces single-call spending limits and the stateful multi-turn ledger budget.
+5. **\`proposed_llm_output\`**:
+   The natural text output from the model. Scanned to redact Markdown image auto-exfiltration tags and sensitive data.
+
+---
+
+## 4. Production Python SDK Integration Example
+
+\`\`\`python
+import requests
+
+INGRESS_KEY = "${ingKey}"
+EGRESS_KEY = "${egrKey}"
+BASE_URL = "http://127.0.0.1:8080"
+
+# 1. PRE-LLM INGRESS GUARD
+ingress_res = requests.post(
+    f"{BASE_URL}/api/v1/guard/ingress",
+    headers={"X-API-Key": INGRESS_KEY, "Content-Type": "application/json"},
+    json={
+        "session_id": "sess_live_01",
+        "user_prompt": user_input,
+        "user_role": "customer"
+    }
+)
+if ingress_res.json().get("decision") == "BLOCK":
+    raise PermissionError("Prompt Injection Blocked by ContractGuard-X")
+
+# 2. RUN LLM AGENT & RETRIEVAL (Nemotron / Llama / etc)
+# ... agent reasoning and tool proposal ...
+
+# 3. POST-TOOL EGRESS GUARD (TCEAV, RBAC & LEDGER)
+egress_res = requests.post(
+    f"{BASE_URL}/api/v1/guard/egress",
+    headers={"X-API-Key": EGRESS_KEY, "Content-Type": "application/json"},
+    json={
+        "session_id": "sess_live_01",
         "user_intent": user_input,
+        "user_role": "customer",
         "untrusted_context": [untrusted_rag_doc],
         "tool_name": tool_call.name,
         "tool_arguments": tool_call.args,
@@ -391,7 +553,24 @@ egress_res = requests.post(
     }
 )
 if egress_res.json().get("decision") == "BLOCK":
-    raise SecurityException("Indirect Injection Blocked: " + egress_res.json().get("interception_stage"))`;
+    stage = egress_res.json().get("interception_stage")
+    reason = egress_res.json().get("reason")
+    raise PermissionError(f"Action Blocked by ContractGuard-X [{{stage}}]: {{reason}}")
+
+# 4. SAFE EXECUTION
+# execute tool safely here
+\`\`\`
+`;
+
+    const blob = new Blob([content], { type: "text/markdown;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `ContractGuard_Integration_Guide_${projName.replace(/\\s+/g, "_")}.md`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -1054,18 +1233,29 @@ if egress_res.json().get("decision") == "BLOCK":
 
               {/* Ready-to-use Python snippet */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <span className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wide flex items-center gap-1.5">
                     <Code2 className="h-3.5 w-3.5 text-blue-400" />
-                    Copy Implementation Code (Python SDK & REST)
+                    Implementation Code & Integration Manual
                   </span>
-                  <button
-                    onClick={() => copyToClipboard(samplePythonSnippet, "code")}
-                    className="flex items-center gap-1 text-xs text-[var(--accent-primary)] hover:underline font-semibold"
-                  >
-                    {copiedKey === "code" ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                    <span>{copiedKey === "code" ? "Copied Snippet!" : "Copy Code"}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDownloadIntegrationGuide}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-sm"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Download Integration Guide (.md)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(samplePythonSnippet, "code")}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface-inset)] hover:bg-[var(--surface-card-hover)] border border-[var(--border-color)] text-[var(--accent-primary)] font-bold text-xs transition-all shadow-sm"
+                    >
+                      {copiedKey === "code" ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                      <span>{copiedKey === "code" ? "Copied Snippet!" : "Copy Code"}</span>
+                    </button>
+                  </div>
                 </div>
                 <pre className="p-4 rounded-xl bg-[var(--surface-inset)] border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] overflow-x-auto leading-relaxed">
                   {samplePythonSnippet}

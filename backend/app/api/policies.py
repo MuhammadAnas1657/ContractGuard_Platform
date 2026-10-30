@@ -44,7 +44,7 @@ async def ingest_agent_zip(
 
     content = await file.read()
     try:
-        extracted_files, tools, _ = ZipToolExtractor.extract_tools_from_zip(
+        extracted_files, tools, doc_texts = ZipToolExtractor.extract_tools_from_zip(
             content, raise_on_traversal=True, raise_on_encrypted=True
         )
     except ValueError as err:
@@ -53,10 +53,32 @@ async def ingest_agent_zip(
     proj_id = f"proj_{uuid.uuid4().hex[:8]}"
     name = project_name or file.filename.replace(".zip", "")
 
-    # Run gap detection and question generation
+    # Dynamic AI Security Analysis (Methodology Module 1: AI Policy Architect)
+    overview_text = ""
+    if doc_texts and isinstance(doc_texts, dict):
+        overview_text = "\n\n".join(doc_texts.values())
+
+    from .agentic_ai import analyze_custom_project_security
+    ai_audit = analyze_custom_project_security(
+        project_name=name,
+        domain="Custom",
+        tools=tools,
+        overview_md=overview_text
+    )
+
+    # Run canonical gap detection
     gaps = PolicyGapDetector.detect_gaps(tools)
-    questions_raw = PolicyGapDetector.generate_interview_questions(tools, gaps)
-    questions = [InterviewQuestionSchema(**q) for q in questions_raw]
+    canonical_questions = PolicyGapDetector.generate_interview_questions(tools, gaps)
+
+    # Combine questions: dynamic AI questions first, deduplicated with canonical questions
+    ai_questions = ai_audit.get("questions") or []
+    seen_ids = set()
+    combined_questions = []
+    for q in ai_questions + canonical_questions:
+        qid = q.get("id")
+        if qid not in seen_ids:
+            seen_ids.add(qid)
+            combined_questions.append(InterviewQuestionSchema(**q))
 
     # Synthesize draft policy
     draft_yaml = PolicyCompiler.synthesize_policy(tools=tools, answers={}, agent_name=name)
@@ -89,7 +111,12 @@ async def ingest_agent_zip(
         tools=[ToolDefinitionSchema(**t) for t in tools],
         detected_gaps=gaps,
         draft_policy=parsed_draft,
-        questions=questions
+        questions=combined_questions,
+        detected_conflicts=ai_audit.get("conflicts"),
+        missing_safeguards=ai_audit.get("missing_safeguards"),
+        detected_privileges=ai_audit.get("privileges"),
+        risk_summary=ai_audit.get("risk_summary"),
+        model_used=ai_audit.get("model_used")
     )
 
 

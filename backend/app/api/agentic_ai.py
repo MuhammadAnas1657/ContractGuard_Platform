@@ -433,6 +433,11 @@ def harden_policy(req: HardenPolicyRequest, db: Session = Depends(get_db)):
                 "allowed_destination_patterns": [allowed_recip]
             }
         },
+        "role_permissions": {
+            "admin": ["*"],
+            "operator": [t.get("name") for t in tools if t.get("name")],
+            "user": [t.get("name") for t in tools if not any(v in t.get("name", "").lower() for v in ("transfer", "wire", "refund", "pay", "delete", "drop", "exec"))] or ["*"]
+        },
         "tools": {}
     }
 
@@ -445,6 +450,7 @@ def harden_policy(req: HardenPolicyRequest, db: Session = Depends(get_db)):
         is_mut = any(v in t_name.lower() for v in ("transfer", "wire", "refund", "pay", "update", "delete", "drop", "write", "exec"))
         policy_doc["tools"][t_name] = {
             "action_type": "execute" if is_mut else "read",
+            "allowed_roles": ["admin", "operator"] if is_mut else ["admin", "operator", "user"],
             "parameters": t_params
         }
         if any(v in t_name.lower() for v in ("transfer", "wire", "refund", "pay")):

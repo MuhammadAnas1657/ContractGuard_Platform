@@ -39,6 +39,11 @@ class DiscoveredToolsResponse(BaseModel):
     draft_policy: Optional[Dict[str, Any]] = None
     questions: List[InterviewQuestionSchema] = Field(default_factory=list)
     dual_keys: Optional[Dict[str, Any]] = None
+    detected_conflicts: Optional[List[Dict[str, Any]]] = None
+    missing_safeguards: Optional[List[Dict[str, Any]]] = None
+    detected_privileges: Optional[List[str]] = None
+    risk_summary: Optional[str] = None
+    model_used: Optional[str] = None
 
 
 ZipIngestResponseSchema = DiscoveredToolsResponse
@@ -51,8 +56,8 @@ class InterviewQuestionSchema(BaseModel):
     question: str
     prompt: Optional[str] = None
     explanation: Optional[str] = ""
-    options: List[str] = Field(default_factory=list)
-    default_value: str = "500.00"
+    options: List[Any] = Field(default_factory=list)
+    default_value: Any = "500.00"
     gap_type: Optional[str] = "spending_limits"
     required: bool = True
     tool_name: Optional[str] = ""

@@ -133,7 +133,7 @@ async def upload_agent_zip(
 
     content = await file.read()
     try:
-        extracted_files, tools, _ = ZipToolExtractor.extract_tools_from_zip(
+        extracted_files, tools, doc_texts = ZipToolExtractor.extract_tools_from_zip(
             content, raise_on_traversal=True, raise_on_encrypted=True
         )
     except ValueError as err:
@@ -146,9 +146,32 @@ async def upload_agent_zip(
     proj_id = existing_proj.id if existing_proj else f"proj_{uuid.uuid4().hex[:8]}"
     name = project_name or (existing_proj.name if existing_proj else file.filename.replace(".zip", ""))
 
+    # Dynamic AI Security Analysis (Methodology Module 1: AI Policy Architect)
+    overview_text = ""
+    if doc_texts and isinstance(doc_texts, dict):
+        overview_text = "\n\n".join(doc_texts.values())
+
+    from .agentic_ai import analyze_custom_project_security
+    ai_audit = analyze_custom_project_security(
+        project_name=name,
+        domain="Custom",
+        tools=tools,
+        overview_md=overview_text
+    )
+
+    # Canonical gap detection for standard compliance
     gaps = PolicyGapDetector.detect_gaps(tools)
-    questions_raw = PolicyGapDetector.generate_interview_questions(tools, gaps)
-    questions = [InterviewQuestionSchema(**q) for q in questions_raw]
+    canonical_questions = PolicyGapDetector.generate_interview_questions(tools, gaps)
+
+    # Combine: dynamic AI questions first, deduplicated with canonical questions
+    ai_questions = ai_audit.get("questions") or []
+    seen_ids = set()
+    combined_questions = []
+    for q in ai_questions + canonical_questions:
+        qid = q.get("id")
+        if qid not in seen_ids:
+            seen_ids.add(qid)
+            combined_questions.append(InterviewQuestionSchema(**q))
 
     draft_yaml = PolicyCompiler.synthesize_policy(tools=tools, answers={}, agent_name=name)
     parsed_draft = yaml.safe_load(draft_yaml) or {}
@@ -187,8 +210,41 @@ async def upload_agent_zip(
         tools=[ToolDefinitionSchema(**t) for t in tools],
         detected_gaps=gaps,
         draft_policy=parsed_draft,
-        questions=questions,
-        dual_keys=dual_keys
+        questions=combined_questions,
+        dual_keys=dual_keys,
+        detected_conflicts=ai_audit.get("conflicts"),
+        missing_safeguards=ai_audit.get("missing_safeguards"),
+        detected_privileges=ai_audit.get("privileges"),
+        risk_summary=ai_audit.get("risk_summary"),
+        model_used=ai_audit.get("model_used")
+    )
+
+
+@router.get("/{project_id}/integration-guide")
+def get_project_integration_guide(project_id: str, db: Session = Depends(get_db)):
+    """Generates project-tailored markdown integration guide with active dual keys."""
+    from fastapi.responses import PlainTextResponse
+    from ..core.guide_generator import generate_integration_guide
+
+    proj = db.query(ProjectRecord).filter(ProjectRecord.id == project_id).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    dual_keys = _extract_project_dual_keys(db, proj)
+    ing_key = dual_keys["ingress"].raw_key if dual_keys.get("ingress") and dual_keys["ingress"].raw_key else (dual_keys["ingress"].key_prefix + "..." if dual_keys.get("ingress") else "cgx_ing_your_key")
+    egr_key = dual_keys["egress"].raw_key if dual_keys.get("egress") and dual_keys["egress"].raw_key else (dual_keys["egress"].key_prefix + "..." if dual_keys.get("egress") else "cgx_egr_your_key")
+
+    guide_md = generate_integration_guide(
+        project_name=proj.name,
+        domain=(proj.policy_json or {}).get("domain", "Custom"),
+        ingress_key=ing_key,
+        egress_key=egr_key
+    )
+    clean_filename = f"ContractGuard_Integration_Guide_{proj.name.replace(' ', '_')}.md"
+    return PlainTextResponse(
+        content=guide_md,
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{clean_filename}"'}
     )
 
 
