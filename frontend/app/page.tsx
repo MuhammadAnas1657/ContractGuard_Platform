@@ -567,15 +567,19 @@ export default function Home() {
           </div>
         ) : !user ? (
           <div className="max-w-xl mx-auto my-12 animate-fadeIn">
-            <div className="neu-card p-8 rounded-3xl bg-white/95 border border-white shadow-xl space-y-6">
+            <div className="theme-card p-8 rounded-3xl bg-[var(--surface-card)] border border-[var(--border-color)] shadow-xl space-y-6">
               <div className="text-center space-y-2">
-                <div className="h-14 w-14 mx-auto rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-inner">
-                  <Lock className="h-7 w-7 text-blue-600" />
+                <div className="h-16 w-16 mx-auto rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shadow-inner">
+                  <img
+                    src="/logo.png"
+                    alt="ContractGuard-X Logo"
+                    className="h-12 w-12 object-contain drop-shadow-sm"
+                  />
                 </div>
-                <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                <h2 className="text-xl font-extrabold text-[var(--text-primary)] tracking-tight">
                   ContractGuard-X Authentication Gate
                 </h2>
-                <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                <p className="text-xs text-[var(--text-secondary)] max-w-sm mx-auto">
                   Zero-Trust security policies, reference monitors, and runtime gateways are protected. Sign in or authenticate as an official hackathon evaluator to proceed.
                 </p>
               </div>
