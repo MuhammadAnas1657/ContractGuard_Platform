@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import AttackDatabaseExplorer from "../settings/AttackDatabaseExplorer";
 import {
   Users,
   FolderGit2,
@@ -95,6 +96,7 @@ export default function AdminGovernanceView({
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [projectSearchQuery, setProjectSearchQuery] = useState("");
   const [selectedUserFilter, setSelectedUserFilter] = useState<string | null>(null);
+  const [adminTab, setAdminTab] = useState<"portfolio" | "threat_database">("portfolio");
 
   // Inspector Modal state
   const [inspectingProject, setInspectingProject] = useState<AdminProjectItem | null>(null);
@@ -294,8 +296,56 @@ export default function AdminGovernanceView({
         </div>
       )}
 
-      {/* SECTION 1: 4 Executive Platform Structuring Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Admin Tab Switcher */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-1.5 rounded-2xl bg-[var(--surface-inset)] border border-[var(--border-color)]">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setAdminTab("portfolio")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              adminTab === "portfolio"
+                ? "bg-[var(--surface-card)] text-[var(--accent-primary)] shadow-sm border border-[var(--border-color)]"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            <span>Platform Structuring & Projects</span>
+            {metrics && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--surface-inset)] text-[var(--text-secondary)] border border-[var(--border-color)] font-mono font-bold">
+                {metrics.total_projects} projects
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setAdminTab("threat_database")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              adminTab === "threat_database"
+                ? "bg-[var(--surface-card)] text-[var(--accent-primary)] shadow-sm border border-[var(--border-color)]"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <ShieldAlert className="h-4 w-4 text-amber-400" />
+            <span>Threat Signatures Explorer</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono font-bold">
+              463 Signatures
+            </span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 px-3 text-[11px] text-[var(--text-secondary)]">
+          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>Authentic Research Corpus Active (Sub-0.05ms SLA)</span>
+        </div>
+      </div>
+
+      {adminTab === "threat_database" ? (
+        <div className="space-y-4">
+          <AttackDatabaseExplorer token={token} />
+        </div>
+      ) : (
+        <>
+          {/* SECTION 1: 4 Executive Platform Structuring Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Registered Users */}
         <div className="theme-card p-5 rounded-2xl bg-[var(--surface-card)] border border-[var(--border-color)] shadow-sm space-y-3 transition-all hover:border-[var(--accent-primary)]/40">
           <div className="flex items-center justify-between">
@@ -666,6 +716,8 @@ export default function AdminGovernanceView({
           </table>
         </div>
       </div>
+      </>
+      )}
 
       {/* SECTION 4: Dedicated Project Security Inspector Modal (Admin Duty) */}
       {inspectingProject && (

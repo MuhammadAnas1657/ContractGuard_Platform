@@ -11,9 +11,13 @@ from typing import List, Dict, Any, Optional, Tuple
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sqlalchemy.orm import Session
+from .curated_attack_corpus import get_curated_attack_corpus
 
-# Curated benchmark attack signatures expanded for Milestone 1 (F18)
-ATTACK_VECTOR_DATASET: List[Dict[str, Any]] = [
+# Curated authentic benchmark attack signatures expanded from research kit & academic jailbreak corpora
+ATTACK_VECTOR_DATASET: List[Dict[str, Any]] = get_curated_attack_corpus()
+
+# Legacy static dataset kept for fallback reference
+LEGACY_ATTACK_VECTOR_DATASET: List[Dict[str, Any]] = [
     # 1. DIRECT JAILBREAKS & ROLEPLAY BYPASSES
     {
         "id": "jb_dan_classic",
@@ -364,7 +368,9 @@ class VectorAttackDatabase:
                     "family": sig["family"],
                     "similarity_score": round(score, 3),
                     "matched_text": sig["text"],
-                    "description": sig["description"]
+                    "description": sig["description"],
+                    "severity": sig.get("severity", "HIGH"),
+                    "source_dataset": sig.get("source_dataset", "Curated")
                 })
 
         return matches
@@ -442,7 +448,9 @@ class VectorAttackDatabase:
                         "id": rec.id,
                         "family": rec.attack_family,
                         "text": rec.pattern,
-                        "description": rec.description
+                        "description": rec.description,
+                        "severity": getattr(rec, "severity", "HIGH") or "HIGH",
+                        "source_dataset": getattr(rec, "source_dataset", "Curated") or "Curated"
                     })
                 self.signatures = db_signatures
                 self._build_vector_index()
@@ -466,7 +474,9 @@ class VectorAttackDatabase:
                         pattern=sig["text"],
                         signature_type="vector",
                         attack_family=sig["family"],
-                        description=sig["description"]
+                        description=sig["description"],
+                        severity=sig.get("severity", "HIGH"),
+                        source_dataset=sig.get("source_dataset", "Curated")
                     )
                     db_session.add(rec)
                     count += 1
@@ -474,11 +484,38 @@ class VectorAttackDatabase:
                     existing.pattern = sig["text"]
                     existing.attack_family = sig["family"]
                     existing.description = sig["description"]
+                    existing.severity = sig.get("severity", "HIGH")
+                    existing.source_dataset = sig.get("source_dataset", "Curated")
                     count += 1
             db_session.commit()
         except Exception:
             db_session.rollback()
         return count
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Returns threat family distribution and source dataset attribution counts."""
+        families: Dict[str, int] = {}
+        sources: Dict[str, int] = {}
+        for s in self.signatures:
+            f = s.get("family", "UNKNOWN")
+            src = s.get("source_dataset", "Curated")
+            families[f] = families.get(f, 0) + 1
+            sources[src] = sources.get(src, 0) + 1
+
+        vocab_size = (
+            len(self.vectorizer.vocabulary_)
+            if hasattr(self, "vectorizer") and hasattr(self.vectorizer, "vocabulary_") and self.vectorizer.vocabulary_
+            else 0
+        )
+
+        return {
+            "total_signatures": len(self.signatures),
+            "families": families,
+            "sources": sources,
+            "vocabulary_size": vocab_size,
+            "index_type": "TF-IDF Character N-Grams (Sub-millisecond Cosine Matrix)",
+            "similarity_threshold": self.similarity_threshold
+        }
 
     def add_signature(
         self,

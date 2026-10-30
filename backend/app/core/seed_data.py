@@ -21,8 +21,8 @@ def seed_attack_signatures():
                 db.add(rec)
         db.commit()
 
-        # 2. Seed Expanded Vector Dataset
-        vector_count = vector_attack_db.seed_to_db(db, overwrite=False)
+        # 2. Seed Expanded Vector Dataset from Authentic Benchmarks
+        vector_count = vector_attack_db.seed_to_db(db, overwrite=True)
 
         # 3. Reload in-memory vector index from DB
         loaded_count = vector_attack_db.sync_from_db(db)

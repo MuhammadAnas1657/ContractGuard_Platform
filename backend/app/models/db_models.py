@@ -60,9 +60,11 @@ class AttackSignatureRecord(Base):
 
     id = Column(String(64), primary_key=True, index=True)
     pattern = Column(Text, nullable=False)
-    signature_type = Column(String(64), default="regex")  # regex, prefix, embedding_hash
+    signature_type = Column(String(64), default="regex")  # regex, prefix, embedding_hash, vector, dataset
     attack_family = Column(String(128), default="jailbreak")
     description = Column(String(255), default="")
+    severity = Column(String(32), default="HIGH")
+    source_dataset = Column(String(128), default="Curated")
 
 class ApiKeyRecord(Base):
     __tablename__ = "api_keys"

@@ -1293,16 +1293,20 @@ def detect_text_language(req: LanguageDetectRequest):
 
 @router.get("/vector-db/signatures")
 def get_attack_signatures():
-    """Lists curated attack signatures in the Vector Attack Database."""
+    """Lists curated authentic attack signatures in the Vector Attack Database."""
+    stats = vector_attack_db.get_statistics()
     families_grouped: Dict[str, List[Dict[str, Any]]] = {}
     for sig in vector_attack_db.signatures:
         fam = sig.get("family", "OTHER")
         families_grouped.setdefault(fam, []).append(sig)
 
     return {
-        "total_signatures": len(vector_attack_db.signatures),
+        "total_signatures": stats["total_signatures"],
         "families": list(families_grouped.keys()),
         "families_grouped": families_grouped,
+        "sources": stats["sources"],
+        "index_type": stats["index_type"],
+        "vocabulary_size": stats["vocabulary_size"],
         "signatures": vector_attack_db.signatures
     }
 
@@ -1334,16 +1338,19 @@ def create_custom_attack_signature(payload: Dict[str, Any], db: Session = Depend
 
 @router.post("/vector-db/query")
 def query_vector_attack_db(payload: Dict[str, Any]):
-    """Tests a query string against the Vector Attack Database."""
+    """Tests a query string against the Vector Attack Database with sub-millisecond latency tracking."""
     text = payload.get("text") or payload.get("prompt") or ""
+    t0 = time.perf_counter()
     res = vector_attack_db.evaluate_threat(text)
+    latency_ms = round((time.perf_counter() - t0) * 1000.0, 3)
     top_match = res.get("top_match") or {}
     return {
         **res,
         "matched": bool(res.get("is_threat")),
         "similarity": float(res.get("risk_score", 0.0)),
         "matched_family": res.get("threat_family", "NONE"),
-        "matched_signature": top_match.get("text") or top_match.get("description") or ""
+        "matched_signature": top_match.get("text") or top_match.get("description") or "",
+        "latency_ms": latency_ms
     }
 
 
